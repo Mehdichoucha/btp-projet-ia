@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pat o Ketchup - Créez vos recettes</title>
+    <link rel="icon" type="image/png" href="images/logo_2.png">
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Bannière / Menu en haut -->
+    <header class="navbar">
+        <div class="navbar-content">
+            <div class="logo">
+                <img src="images/logo_1.png" alt="Pat o Ketchup">
+            </div>
+            <div class="menu-icon">
+                <img src="images/menu_1.png" alt="Menu">
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenu principal -->
+    <main class="main-content">
+        <!-- Bouton vert pour créer une recette -->
+        <section class="create-recipe-section">
+            <button class="create-recipe-btn">
+                <span>+ Créer une recette</span>
+            </button>
+        </section>
+
+        <!-- Section Historique -->
+        <section class="recipes-section">
+            <h2 class="section-title">Historique</h2>
+            <div class="recipes-slider-container">
+                <button class="slider-btn slider-btn-left" data-section="history">‹</button>
+                <div class="recipes-slider" id="history-slider">
+                    <!-- Contenu vide par défaut -->
+                    <div class="empty-state">
+                        <p>Aucune recette dans l'historique.</p>
+                        <p>Créez votre première recette pour commencer !</p>
+                    </div>
+                </div>
+                <button class="slider-btn slider-btn-right" data-section="history">›</button>
+            </div>
+        </section>
+
+        <!-- Section Favoris -->
+        <section class="recipes-section">
+            <h2 class="section-title">Favoris</h2>
+            <div class="recipes-slider-container">
+                <button class="slider-btn slider-btn-left" data-section="favorites">‹</button>
+                <div class="recipes-slider" id="favorites-slider">
+                    <!-- Contenu vide par défaut -->
+                    <div class="empty-state">
+                        <p>Aucune recette favorite.</p>
+                        <p>Ajoutez des recettes à vos favoris après les avoir créées !</p>
+                    </div>
+                </div>
+                <button class="slider-btn slider-btn-right" data-section="favorites">›</button>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

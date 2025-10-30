@@ -1,0 +1,253 @@
+/* Reset et styles globaux */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Baloo 2', cursive;
+    background-color: #A19085;
+    color: #333;
+}
+
+/* Navbar / Bannière */
+.navbar {
+    background-color: #F99172;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    width: 100%;
+}
+
+.navbar-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.logo img {
+    height: 60px;
+    cursor: pointer;
+}
+
+.menu-icon img {
+    height: 40px;
+    cursor: pointer;
+}
+
+/* Contenu principal */
+.main-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 30px;
+}
+
+/* Section bouton créer une recette */
+.create-recipe-section {
+    margin-bottom: 40px;
+    text-align: left;
+    padding-left: 10px;
+}
+
+.create-recipe-btn {
+    background-color: #4CAF50;
+    color: white;
+    font-family: 'Baloo 2', cursive;
+    font-size: 24px;
+    font-weight: 600;
+    padding: 20px 50px;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    transition: all 0.3s ease;
+}
+
+.create-recipe-btn:hover {
+    background-color: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+}
+
+.create-recipe-btn:active {
+    transform: translateY(0);
+}
+
+/* Sections de recettes */
+.recipes-section {
+    margin-bottom: 50px;
+}
+
+.section-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 20px;
+    padding-left: 10px;
+}
+
+/* Container du slider */
+.recipes-slider-container {
+    position: relative;
+    width: 100%;
+}
+
+.recipes-slider {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    padding: 20px 10px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE et Edge */
+}
+
+.recipes-slider::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+/* État vide */
+.empty-state {
+    width: 100%;
+    text-align: center;
+    padding: 60px 20px;
+    background-color: #ffffff;
+    border-radius: 15px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.empty-state p {
+    font-size: 18px;
+    color: #999;
+    margin-bottom: 10px;
+}
+
+.empty-state p:first-child {
+    font-weight: 600;
+    color: #666;
+}
+
+/* Cartes de recettes (pour plus tard) */
+.recipe-card {
+    min-width: 280px;
+    max-width: 280px;
+    background-color: #ffffff;
+    border-radius: 15px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.recipe-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+}
+
+.recipe-card-image {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    background-color: #e0e0e0;
+}
+
+.recipe-card-content {
+    padding: 15px;
+}
+
+.recipe-card-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.recipe-card-description {
+    font-size: 14px;
+    color: #666;
+    line-height: 1.4;
+}
+
+/* Boutons de navigation du slider */
+.slider-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(255, 255, 255, 0.9);
+    color: #333;
+    border: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    font-size: 30px;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    z-index: 10;
+    display: none; /* Caché par défaut, visible quand il y a des recettes */
+}
+
+.slider-btn:hover {
+    background-color: #ffffff;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.slider-btn-left {
+    left: -25px;
+}
+
+.slider-btn-right {
+    right: -25px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .navbar-content {
+        padding: 15px 20px;
+    }
+
+    .logo img {
+        height: 50px;
+    }
+
+    .menu-icon img {
+        height: 35px;
+    }
+
+    .main-content {
+        padding: 20px;
+    }
+
+    .create-recipe-btn {
+        font-size: 20px;
+        padding: 15px 40px;
+    }
+
+    .section-title {
+        font-size: 26px;
+    }
+
+    .recipe-card {
+        min-width: 240px;
+        max-width: 240px;
+    }
+
+    .slider-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 24px;
+    }
+
+    .slider-btn-left {
+        left: -20px;
+    }
+
+    .slider-btn-right {
+        right: -20px;
+    }
+}
