@@ -1,19 +1,17 @@
 // ========================================
 // PATOKETCHUP - APPLICATION DE RECETTES
-// Étape 3 : JavaScript avec API Spoonacular (CORRIGÉ)
+// Étape 3 : JavaScript avec API TheMealDB (adapté)
 // ========================================
 
-// Configuration de l'API TheMealDB (gratuite et parfaite pour recherche multi-ingrédients)
+// Configuration de l'API TheMealDB
 const API_CONFIG = {
     baseUrl: 'https://www.themealdb.com/api/json/v1/1',
-    // TheMealDB est gratuite, pas besoin de clé API ! 🎉
     endpoints: {
-        searchByIngredient: '/filter.php?i=', // Recherche par ingrédient principal
-        searchByName: '/search.php?s=', // Recherche par nom
-        getById: '/lookup.php?i=', // Détails d'une recette
-        random: '/random.php', // Recette aléatoire
-        categories: '/categories.php', // Toutes les catégories
-        listIngredients: '/list.php?i=list' // Liste de tous les ingrédients
+        searchByName: '/search.php',        // ?s=nom
+        searchByIngredient: '/filter.php',  // ?i=ingredient
+        getById: '/lookup.php',             // ?i=ID
+        random: '/random.php',
+        categories: '/categories.php'
     }
 };
 
@@ -28,6 +26,22 @@ let currentSearchTerm = '';
 let isLoading = false;
 let currentSection = 'home'; // Section active
 let selectedIngredients = []; // Ingrédients sélectionnés pour "Mon Frigo"
+let selectedIngredientsTranslated = []; // Traductions automatiques en anglais pour les appels API
+
+// --- Supabase configuration (PLACEHOLDERS) ---
+// Créez un projet Supabase et remplacez les valeurs ci-dessous par celles de votre projet.
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+let supabaseClient = null;
+if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
+    try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } catch (err) {
+        console.warn('Impossible d\'initialiser Supabase:', err);
+    }
+} else {
+    console.log('Supabase non configuré. Ajoutez SUPABASE_URL et SUPABASE_ANON_KEY dans script.js pour activer la persistance.');
+}
 
 // Données de fallback pour les tests (si API non disponible)
 const fallbackRecipes = [
@@ -203,41 +217,31 @@ const fallbackRecipes = [
 // Fonction utilitaire pour faire des appels API vers TheMealDB
 async function makeAPICall(endpoint, params = {}) {
     try {
-        // Pour TheMealDB, pas besoin de clé API ! 🎉
-        let url;
-        
-        if (endpoint.includes('?')) {
-            // L'endpoint contient déjà des paramètres (ex: /filter.php?i=chicken)
-            url = API_CONFIG.baseUrl + endpoint;
-        } else {
-            // Construction standard
-            url = new URL(API_CONFIG.baseUrl + endpoint);
-            Object.entries(params).forEach(([key, value]) => {
-                if (value !== undefined && value !== null) {
-                    url.searchParams.append(key, value);
-                }
-            });
-            url = url.toString();
-        }
-        
-        console.log('🌐 TheMealDB API Call:', url);
-        
-        const response = await fetch(url);
-        
+        const url = new URL(API_CONFIG.baseUrl + endpoint);
+        Object.entries(params).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                url.searchParams.append(key, value);
+            }
+        });
+
+        console.log('🌐 TheMealDB API Call:', url.toString());
+
+        const response = await fetch(url.toString());
+
         if (!response.ok) {
             throw new Error(`API Error: ${response.status} - ${response.statusText}`);
         }
-        
+
         const data = await response.json();
         return data;
-        
+
     } catch (error) {
         console.error('❌ TheMealDB API Error:', error);
         return null;
     }
 }
 
-// Fonction pour améliorer la qualité des images de l'API Spoonacular
+// Fonction pour améliorer la qualité des images (fallback)
 function enhanceImageQuality(imageUrl, size = '636x393') {
     console.log('🔍 enhanceImageQuality called with:', imageUrl);
     
@@ -319,42 +323,29 @@ async function searchRecipes(query, type = '', number = 12) {
     
     try {
         setLoadingState(true);
-        
-        const params = {
-            query: query,
-            number: number,
-            addRecipeInformation: true,
-            fillIngredients: false
-        };
-        
-        // Ajouter le filtre de type si spécifié
-        if (type && type !== 'all') {
-            params.type = type;
-        }
-        
-        const data = await makeAPICall(API_CONFIG.endpoints.search, params);
-        
-        if (data && data.results) {
-            const recipes = data.results.map(recipe => ({
-                id: recipe.id,
-                name: recipe.title,
-                category: getCategoryFromDishTypes(recipe.dishTypes || []),
-                difficulty: getDifficultyFromTime(recipe.readyInMinutes),
-                time: `${recipe.readyInMinutes || 30} min`,
-                servings: recipe.servings || 4,
-                image: enhanceImageQuality(recipe.image || 'https://images.unsplash.com/photo-1547592180-85f173990554?w=636&h=393&fit=crop&auto=format', '636x393'),
-                description: recipe.summary ? recipe.summary.replace(/<[^>]*>/g, '').substring(0, 150) + '...' : 'Délicieuse recette trouvée',
-                ingredients: [],
-                instructions: []
+
+        const data = await makeAPICall(API_CONFIG.endpoints.searchByName, { s: query });
+
+        if (data && data.meals) {
+            const recipes = data.meals.map(meal => ({
+                id: meal.idMeal,
+                name: meal.strMeal,
+                category: meal.strCategory ? meal.strCategory.toLowerCase() : 'plats',
+                difficulty: getDifficultyFromTime(null),
+                time: '30 min',
+                servings: 4,
+                image: enhanceImageQuality(meal.strMealThumb || 'https://images.unsplash.com/photo-1547592180-85f173990554?w=636&h=393&fit=crop&auto=format', '636x393'),
+                description: meal.strInstructions ? meal.strInstructions.replace(/<[^>]*>/g, '').substring(0, 150) + '...' : 'Délicieuse recette trouvée',
+                ingredients: extractMealIngredients(meal),
+                instructions: meal.strInstructions ? meal.strInstructions.split('\n').filter(Boolean) : []
             }));
-            
-            // Mettre en cache
+
             searchCache.set(cacheKey, recipes);
             return recipes;
         } else {
             return [];
         }
-        
+
     } catch (error) {
         console.error('❌ Error searching recipes:', error);
         return [];
@@ -363,7 +354,7 @@ async function searchRecipes(query, type = '', number = 12) {
     }
 }
 
-// Obtenir les détails complets d'une recette
+// Obtenir les détails complets d'une recette (TheMealDB)
 async function getRecipeDetails(recipeId) {
     const cacheKey = `details_${recipeId}`;
     
@@ -374,33 +365,32 @@ async function getRecipeDetails(recipeId) {
     }
     
     try {
-        const data = await makeAPICall(`/${recipeId}/information`, {
-            includeNutrition: false
-        });
-        
-        if (data) {
+        const data = await makeAPICall(API_CONFIG.endpoints.getById, { i: recipeId });
+
+        if (data && data.meals && data.meals.length > 0) {
+            const meal = data.meals[0];
+            const ingredients = extractMealIngredients(meal);
+            const instructions = meal.strInstructions ? meal.strInstructions.split('\n').filter(Boolean) : (meal.strInstructions ? [meal.strInstructions] : []);
+
             const recipe = {
-                id: data.id,
-                name: data.title,
-                category: getCategoryFromDishTypes(data.dishTypes || []),
-                difficulty: getDifficultyFromTime(data.readyInMinutes),
-                time: `${data.readyInMinutes || 30} min`,
-                servings: data.servings || 4,
-                image: enhanceImageQuality(data.image || 'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=800&h=600&fit=crop&auto=format', '800x600'),
-                description: data.summary ? data.summary.replace(/<[^>]*>/g, '') : 'Délicieuse recette',
-                ingredients: data.extendedIngredients ? data.extendedIngredients.map(ing => ing.original) : [],
-                instructions: data.analyzedInstructions && data.analyzedInstructions.length > 0 
-                    ? data.analyzedInstructions[0].steps.map(step => step.step)
-                    : ['Instructions non disponibles']
+                id: meal.idMeal,
+                name: meal.strMeal,
+                category: meal.strCategory || 'Plat',
+                difficulty: getDifficultyFromTime(null),
+                time: '30 min',
+                servings: 4,
+                image: enhanceImageQuality(meal.strMealThumb || '' , '800x600'),
+                description: meal.strInstructions ? meal.strInstructions.replace(/<[^>]*>/g, '') : 'Délicieuse recette',
+                ingredients: ingredients,
+                instructions: instructions
             };
-            
-            // Mettre en cache
+
             recipeCache.set(cacheKey, recipe);
             return recipe;
         }
-        
+
         return null;
-        
+
     } catch (error) {
         console.error('❌ Error getting recipe details:', error);
         return null;
@@ -575,7 +565,11 @@ function addIngredient(ingredient) {
         return;
     }
     
+    // Traduction automatique en anglais (pour les appels API)
+    const translated = translateIngredientToEnglish(cleanIngredient);
+
     selectedIngredients.push(cleanIngredient);
+    selectedIngredientsTranslated.push(translated);
     updateIngredientsDisplay();
     
     // Vider le champ de saisie
@@ -595,6 +589,8 @@ function removeIngredient(ingredient) {
     const index = selectedIngredients.indexOf(ingredient);
     if (index > -1) {
         selectedIngredients.splice(index, 1);
+        // Supprimer la traduction correspondante
+        selectedIngredientsTranslated.splice(index, 1);
         updateIngredientsDisplay();
         showNotification(`${ingredient} retiré`, 'info');
         
@@ -643,7 +639,7 @@ async function autoSuggestRecipes() {
     
     try {
         // Utiliser l'API pour des suggestions intelligentes
-        const ingredientsQuery = selectedIngredients.join(',');
+        const ingredientsQuery = (selectedIngredientsTranslated.length ? selectedIngredientsTranslated.join(',') : selectedIngredients.join(','));
         console.log(`🤖 Auto-suggestion avec: ${ingredientsQuery}`);
         
         const recipes = await searchRecipesByIngredientsAPI(ingredientsQuery, 6); // Limiter à 6 suggestions
@@ -737,6 +733,7 @@ function displayLocalSuggestions(recipes) {
 // Vider tous les ingrédients
 function clearAllIngredients() {
     selectedIngredients = [];
+    selectedIngredientsTranslated = [];
     updateIngredientsDisplay();
     
     // Masquer les résultats
@@ -837,7 +834,7 @@ async function searchRecipesByIngredients() {
     
     try {
         // Utiliser l'API pour chercher des recettes
-        const ingredientsQuery = selectedIngredients.join(',');
+        const ingredientsQuery = (selectedIngredientsTranslated.length ? selectedIngredientsTranslated.join(',') : selectedIngredients.join(','));
         console.log(`🔍 Recherche API avec ingrédients: ${ingredientsQuery}`);
         
         const recipes = await searchRecipesByIngredientsAPI(ingredientsQuery);
@@ -867,92 +864,81 @@ async function searchRecipesByIngredients() {
     }
 }
 
-// 🎯 API: Recherche Multi-Ingrédients avec TheMealDB (Filtre Intelligent Anti-Gaspi)
+// Recherche Multi-Ingrédients avec TheMealDB (approximation)
 async function searchRecipesByIngredientsAPI(ingredients, maxResults = 12) {
-    console.log('🔍 Recherche multi-ingrédients (original):', ingredients);
-    
-    // 🌍 Traduire tous les ingrédients en anglais pour l'API
-    const ingredientsList = ingredients.toLowerCase().split(',').map(ing => ing.trim());
-    const translatedIngredients = ingredientsList.map(ing => translateIngredientToEnglish(ing));
-    
-    console.log('🌍 Ingrédients traduits:', translatedIngredients);
-    
-    // Étape 1: Rechercher par ingrédient principal (le premier traduit)
-    const mainIngredient = translatedIngredients[0];
-    console.log('🎯 Recherche avec ingrédient principal:', mainIngredient);
-    
-    const data = await makeAPICall(`${API_CONFIG.endpoints.searchByIngredient}${mainIngredient}`);
-    
-    if (!data || !data.meals) {
-        console.log('❌ Aucun résultat pour:', mainIngredient);
-        return [];
-    }
-    
-    console.log('✅ Recettes trouvées:', data.meals.length);
-    
-    // Étape 2: Pour chaque recette, récupérer les détails complets
-    const detailedRecipes = [];
-    
-    for (let meal of data.meals.slice(0, maxResults * 2)) { // Prendre plus pour filtrer
-        try {
-            const details = await makeAPICall(`${API_CONFIG.endpoints.getById}${meal.idMeal}`);
-            if (details && details.meals && details.meals[0]) {
-                const recipe = details.meals[0];
-                
-                // Extraire tous les ingrédients de la recette
-                const recipeIngredients = extractMealIngredients(recipe);
-                
-                // 🔍 Calculer le score de correspondance avec les ingrédients TRADUITS
-                const matchScore = calculateIngredientMatch(translatedIngredients, recipeIngredients);
-                
-                // 🎯 Aussi vérifier avec les ingrédients originaux français (via synonymes)
-                const frenchMatchScore = calculateIngredientMatch(ingredientsList, recipeIngredients);
-                
-                // Prendre le meilleur score entre anglais et français
-                const bestScore = matchScore.totalMatches >= frenchMatchScore.totalMatches ? matchScore : frenchMatchScore;
-                
-                if (bestScore.totalMatches > 0) { // Garder seulement les recettes qui correspondent
+    console.log('🔎 Recherche multi-ingrédients (TheMealDB):', ingredients);
+
+    const ingredientsList = ingredients.toLowerCase().split(',').map(ing => ing.trim()).filter(Boolean);
+
+    if (ingredientsList.length === 0) return [];
+
+    try {
+        setLoadingState(true);
+
+        // TheMealDB filter endpoint supports filtering by a single ingredient. Use the first ingredient to get candidates.
+        const firstIng = ingredientsList[0];
+        const data = await makeAPICall(API_CONFIG.endpoints.searchByIngredient, { i: firstIng });
+
+        if (!data || !data.meals) {
+            console.log('❌ Aucun résultat TheMealDB pour:', firstIng);
+            return [];
+        }
+
+        const candidates = data.meals.slice(0, maxResults * 3);
+        const detailedRecipes = [];
+
+        for (let item of candidates) {
+            try {
+                const details = await getRecipeDetails(item.idMeal);
+                if (!details) continue;
+
+                const recipeIngredients = (details.ingredients || []).map(i => i.toLowerCase());
+
+                const matchScore = calculateIngredientMatch(ingredientsList, recipeIngredients);
+                const bestScore = matchScore;
+
+                if (bestScore.totalMatches > 0) {
                     detailedRecipes.push({
-                        id: recipe.idMeal,
-                        name: recipe.strMeal,
-                        category: recipe.strCategory || 'Plat',
-                        difficulty: getDifficultyFromIngredientCount(recipeIngredients.length),
-                        time: estimateTimeFromIngredients(recipeIngredients.length),
-                        servings: 4, // TheMealDB ne donne pas toujours cette info
-                        image: recipe.strMealThumb || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop&auto=format',
-                        description: recipe.strInstructions ? recipe.strInstructions.substring(0, 120) + '...' : 'Délicieuse recette à découvrir',
-                        ingredients: recipeIngredients,
-                        instructions: recipe.strInstructions ? [recipe.strInstructions] : ['Instructions disponibles dans le détail'],
-                        // 🎯 Données Anti-Gaspi
+                        id: details.id,
+                        name: details.name,
+                        category: details.category || 'Plat',
+                        difficulty: details.difficulty || getDifficultyFromIngredientCount(recipeIngredients.length),
+                        time: details.time || estimateTimeFromIngredients(recipeIngredients.length),
+                        servings: details.servings || 4,
+                        image: details.image || item.strMealThumb || '',
+                        description: details.description ? details.description.substring(0,150) + '...' : '',
+                        ingredients: details.ingredients,
+                        instructions: details.instructions,
                         matchScore: bestScore,
                         usedIngredientCount: bestScore.totalMatches,
-                        missedIngredientCount: ingredientsList.length - bestScore.totalMatches,
+                        missedIngredientCount: Math.max(0, ingredientsList.length - bestScore.totalMatches),
                         totalIngredients: recipeIngredients.length,
                         wasteReduction: Math.round((bestScore.totalMatches / ingredientsList.length) * 100)
                     });
                 }
+
+            } catch (err) {
+                console.warn('Erreur récupération détails TheMealDB:', err);
             }
-        } catch (error) {
-            console.warn(`Erreur récupération détails recette ${meal.idMeal}:`, error);
         }
+
+        // Tri intelligent Anti-Gaspi
+        detailedRecipes.sort((a, b) => {
+            if (a.usedIngredientCount !== b.usedIngredientCount) return b.usedIngredientCount - a.usedIngredientCount;
+            if (a.missedIngredientCount !== b.missedIngredientCount) return a.missedIngredientCount - b.missedIngredientCount;
+            return a.totalIngredients - b.totalIngredients;
+        });
+
+        console.log('🍽️ Recettes filtrées et triées (TheMealDB):', detailedRecipes.length);
+        return detailedRecipes.slice(0, maxResults);
+
+    } catch (error) {
+        console.error('❌ Error searchRecipesByIngredientsAPI (TheMealDB):', error);
+        return [];
+    } finally {
+        setLoadingState(false);
     }
-    
-    // Étape 3: Tri intelligent Anti-Gaspi
-    detailedRecipes.sort((a, b) => {
-        // Priorité 1: Plus de correspondances d'ingrédients
-        if (a.usedIngredientCount !== b.usedIngredientCount) {
-            return b.usedIngredientCount - a.usedIngredientCount;
-        }
-        // Priorité 2: Moins d'ingrédients supplémentaires nécessaires  
-        if (a.missedIngredientCount !== b.missedIngredientCount) {
-            return a.missedIngredientCount - b.missedIngredientCount;
-        }
-        // Priorité 3: Recettes plus simples (moins d'ingrédients total)
-        return a.totalIngredients - b.totalIngredients;
-    });
-    
-    console.log('🎯 Recettes filtrées et triées:', detailedRecipes.length);
-    return detailedRecipes.slice(0, maxResults);
+}
 }
 
 // Extraire les ingrédients d'une recette TheMealDB
@@ -1767,5 +1753,124 @@ document.addEventListener('keydown', function(event) {
         closeRecipeModal();
     }
 });
+
+// --- Supabase helper functions (auth + fridge persistence) ---
+
+async function _getCurrentUser() {
+    if (!supabaseClient) return null;
+    try {
+        if (supabaseClient.auth && supabaseClient.auth.getUser) {
+            const { data } = await supabaseClient.auth.getUser();
+            return data ? data.user : null;
+        }
+        // Fallback older API
+        if (supabaseClient.auth && supabaseClient.auth.user) {
+            return supabaseClient.auth.user();
+        }
+    } catch (err) {
+        console.warn('Erreur getCurrentUser:', err);
+    }
+    return null;
+}
+
+async function supabaseSignUp(email, password) {
+    if (!supabaseClient) { showNotification('Supabase non configuré', 'error'); return; }
+    try {
+        const method = supabaseClient.auth.signUp ? 'v1' : 'v2';
+        if (method === 'v2') {
+            const { data, error } = await supabaseClient.auth.signUp({ email, password });
+            if (error) throw error;
+            showNotification('Inscription réussie — vérifie ton email', 'success');
+        } else {
+            const { data, error } = await supabaseClient.auth.signUp({ email, password });
+            if (error) throw error;
+            showNotification('Inscription réussie — vérifie ton email', 'success');
+        }
+    } catch (err) {
+        console.error('SignUp error:', err);
+        showNotification('Erreur inscription', 'error');
+    }
+}
+
+async function supabaseSignIn(email, password) {
+    if (!supabaseClient) { showNotification('Supabase non configuré', 'error'); return; }
+    try {
+        // v2 method
+        if (supabaseClient.auth.signInWithPassword) {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+        } else {
+            const { data, error } = await supabaseClient.auth.signIn({ email, password });
+            if (error) throw error;
+        }
+
+        showNotification('Connecté avec succès', 'success');
+        // mettre à jour UI
+        const signoutBtn = document.getElementById('signout-btn');
+        if (signoutBtn) signoutBtn.style.display = 'block';
+        await loadFridgeForUser();
+    } catch (err) {
+        console.error('SignIn error:', err);
+        showNotification('Erreur connexion', 'error');
+    }
+}
+
+async function supabaseSignOut() {
+    if (!supabaseClient) { showNotification('Supabase non configuré', 'error'); return; }
+    try {
+        await supabaseClient.auth.signOut();
+        selectedIngredients = [];
+        selectedIngredientsTranslated = [];
+        updateIngredientsDisplay();
+        showNotification('Déconnecté', 'info');
+        const signoutBtn = document.getElementById('signout-btn');
+        if (signoutBtn) signoutBtn.style.display = 'none';
+    } catch (err) {
+        console.error('SignOut error:', err);
+        showNotification('Erreur déconnexion', 'error');
+    }
+}
+
+async function loadFridgeForUser() {
+    if (!supabaseClient) return;
+    const user = await _getCurrentUser();
+    if (!user) return;
+
+    try {
+        const { data, error } = await supabaseClient.from('fridges').select('*').eq('user_id', user.id).single();
+        if (error && error.code !== 'PGRST116') {
+            console.warn('Erreur fetch fridge:', error);
+            return;
+        }
+        if (data) {
+            // data.ingredients attendu comme array de strings ou array d'objets {name_fr}
+            const ing = Array.isArray(data.ingredients) ? data.ingredients : [];
+            selectedIngredients = ing.map(i => (typeof i === 'string' ? i : (i.name_fr || i.name || ''))).filter(Boolean);
+            selectedIngredientsTranslated = selectedIngredients.map(t => translateIngredientToEnglish(t));
+            updateIngredientsDisplay();
+            autoSuggestRecipes();
+            showNotification('Frigo chargé', 'success');
+        }
+    } catch (err) {
+        console.error('loadFridge error:', err);
+    }
+}
+
+async function saveFridgeForUser() {
+    if (!supabaseClient) return;
+    const user = await _getCurrentUser();
+    if (!user) { showNotification('Connecte-toi pour sauvegarder ton frigo', 'warning'); return; }
+
+    try {
+        // Enregistrer uniquement les noms français pour affichage
+        const payload = { user_id: user.id, ingredients: selectedIngredients };
+        const { data, error } = await supabaseClient.from('fridges').upsert(payload, { onConflict: 'user_id' });
+        if (error) throw error;
+        showNotification('Frigo sauvegardé', 'success');
+    } catch (err) {
+        console.error('saveFridge error:', err);
+        showNotification('Erreur sauvegarde frigo', 'error');
+    }
+}
 
 console.log('🍅 Script PatOketchup avec API chargé !');
