@@ -513,40 +513,38 @@ function switchSection(sectionName) {
     handleSectionChange(sectionName);
 }
 
-// Gérer les changements de section
-function handleSectionChange(sectionName) {
+async function handleSectionChange(sectionName) {
     switch (sectionName) {
         case 'home':
-            // Afficher nos recettes de présentation
             if (currentRecipes.length === 0) {
                 currentRecipes = fallbackRecipes;
                 displayRecipes(currentRecipes);
                 updateResultsCount(currentRecipes.length);
             }
             break;
+
         case 'frigo':
-            // Initialiser la section Mon Frigo
             initializeFrigoSection();
             break;
+
         case 'favorites':
-            // TODO: Implémenter les favoris
             break;
+
         case 'shopping':
-            // TODO: Implémenter la liste de courses
             break;
+
         case 'quick':
-            // TODO: Implémenter les recettes rapides
             break;
+
         case 'anti-gaspi':
-            // TODO: Implémenter l'anti-gaspi
             break;
+
         case 'auth':
-            // Afficher le formulaire d'authentification
             const authSection = document.getElementById('auth-section');
             if (authSection) {
                 authSection.style.display = 'block';
             }
-            // Mettre à jour l'affichage du bouton déconnexion selon l'état
+
             try {
                 const user = await _getCurrentUser();
                 const signoutBtn = document.getElementById('signout-btn');
