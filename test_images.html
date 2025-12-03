@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test des Images - PatOketchup</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-image { margin: 10px; border: 2px solid #ccc; padding: 10px; }
+        img { max-width: 300px; height: auto; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Test des Images - PatOketchup</h1>
+    
+    <div class="test-image">
+        <h3>Image Unsplash (fallback)</h3>
+        <img src="https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?w=400&h=300&fit=crop&auto=format" 
+             alt="Test Unsplash"
+             onload="console.log('✅ Unsplash image loaded'); document.getElementById('unsplash-status').innerHTML = '✅ Chargée';"
+             onerror="console.log('❌ Unsplash image failed'); document.getElementById('unsplash-status').innerHTML = '❌ Erreur';">
+        <p id="unsplash-status">⏳ Chargement...</p>
+    </div>
+
+    <div class="test-image">
+        <h3>Image de test générique</h3>
+        <img src="https://via.placeholder.com/400x300/FF6347/white?text=Test+Image" 
+             alt="Test Placeholder"
+             onload="console.log('✅ Placeholder image loaded'); document.getElementById('placeholder-status').innerHTML = '✅ Chargée';"
+             onerror="console.log('❌ Placeholder image failed'); document.getElementById('placeholder-status').innerHTML = '❌ Erreur';">
+        <p id="placeholder-status">⏳ Chargement...</p>
+    </div>
+
+    <div class="test-image">
+        <h3>Test connexion réseau</h3>
+        <button onclick="testNetwork()">Tester la connexion</button>
+        <p id="network-status">Cliquez pour tester</p>
+    </div>
+
+    <script>
+        function testNetwork() {
+            const status = document.getElementById('network-status');
+            status.innerHTML = '⏳ Test en cours...';
+            
+            fetch('https://httpbin.org/json')
+                .then(response => response.json())
+                .then(data => {
+                    status.innerHTML = '✅ Connexion réseau OK';
+                    console.log('Network test success:', data);
+                })
+                .catch(error => {
+                    status.innerHTML = '❌ Problème de connexion réseau';
+                    console.log('Network test failed:', error);
+                });
+        }
+        
+        // Test automatique au chargement
+        console.log('🚀 Page de test chargée');
+        setTimeout(() => {
+            console.log('📊 Status des images après 3 secondes:');
+            console.log('Unsplash:', document.getElementById('unsplash-status').innerHTML);
+            console.log('Placeholder:', document.getElementById('placeholder-status').innerHTML);
+        }, 3000);
+    </script>
+</body>
+</html>

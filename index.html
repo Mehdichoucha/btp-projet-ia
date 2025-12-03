@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>patOketchup - Tes envies, Tes recettes</title>
+    <meta name="description" content="Transforme ce que tu as en ce que tu veux ! Trouve des recettes délicieuses avec tes ingrédients.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Layout Dashboard : Sidebar + Main Content -->
+    <div class="dashboard-layout">
+        
+        <!-- Sidebar gauche (navigation) -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-section">
+                    <img src="Images/logo.png" alt="Logo patOketchup" class="logo">
+                    <h1 class="app-name">patOketchup</h1>
+                </div>
+                <p class="tagline">Tes envies, Tes recettes</p>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <ul class="nav-menu">
+                    <li class="nav-item active">
+                        <a href="#" class="nav-link" data-section="home">
+                            🏠 Accueil
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-section="frigo">
+                            🧊 Mon Frigo
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-section="favorites">
+                            ❤️ Mes Favoris
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-section="shopping">
+                            📝 Ma Liste de Courses
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-section="quick">
+                            ⚡ Recettes Rapides
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-section="anti-gaspi">
+                            🌱 Anti-Gaspi
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <p class="slogan">L'app qui transforme ce que tu as en ce que tu veux !</p>
+            </div>
+        </aside>
+
+        <!-- Zone de contenu principale -->
+        <main class="main-content">
+            <div class="content-container">
+                <!-- En-tête du contenu -->
+                <header class="content-header">
+                    <h2 class="page-title">Que veux-tu cuisiner aujourd'hui ?</h2>
+                    <p class="page-subtitle">Transforme tes ingrédients en délicieuses recettes</p>
+                </header>
+
+                <!-- Zone de recherche moderne -->
+                <section class="search-section">
+                    <div class="search-container">
+                        <div class="search-bar">
+                            <span class="search-icon">🔍</span>
+                            <input 
+                                type="text" 
+                                id="ingredients-input" 
+                                class="search-input"
+                                placeholder="Rechercher une recette, un ingrédient..."
+                                aria-label="Rechercher des recettes"
+                            >
+                            <button type="button" class="filter-btn" aria-label="Filtres">
+                                ⚙️
+                            </button>
+                        </div>
+                        
+                        <!-- Categories rapides (chips) -->
+                        <div class="categories-chips">
+                            <button type="button" class="chip active" data-category="all">Tout</button>
+                            <button type="button" class="chip" data-category="breakfast">🌅 Petit-déj</button>
+                            <button type="button" class="chip" data-category="vegetarian">🌱 Végétarien</button>
+                            <button type="button" class="chip" data-category="quick">⚡ Rapide (-20min)</button>
+                            <button type="button" class="chip" data-category="easy">👶 Facile</button>
+                            <button type="button" class="chip" data-category="surprise">🎲 Surprise</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Zone de résultats (Accueil) -->
+                <section class="results-section" id="home-section">
+                    <div class="results-header" style="display: none;">
+                        <h3 class="results-title">Recettes trouvées</h3>
+                        <span class="results-count" id="results-count">0 recette(s)</span>
+                    </div>
+                    
+                    <!-- Grille des cartes de recettes -->
+                    <div class="recipes-grid" id="recipes-grid">
+                        <!-- Les cartes de recettes apparaîtront ici via JavaScript -->
+                    </div>
+                    
+                    <!-- Message d'état -->
+                    <div class="message-container" id="message-container">
+                        <div class="welcome-message">
+                            <h3>👨‍🍳 Deviens un chef improvisé !</h3>
+                            <p>Entre tes ingrédients dans la barre de recherche et découvre des recettes délicieuses sans gaspillage.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section Mon Frigo (masquée par défaut) -->
+                <section class="frigo-section" id="frigo-section" style="display: none;">
+                    <div class="frigo-header">
+                        <h3 class="frigo-title">🧊 Que reste-t-il dans ton frigo ?</h3>
+                        <p class="frigo-subtitle">Ajoute tes ingrédients et découvre les recettes possibles avec l'API</p>
+                    </div>
+
+                    <!-- Zone d'ajout d'ingrédients -->
+                    <div class="ingredients-input-section">
+                        <div class="add-ingredient-bar">
+                            <span class="ingredient-icon">🥗</span>
+                            <input 
+                                type="text" 
+                                id="frigo-ingredient-input" 
+                                class="ingredient-input"
+                                placeholder="Ajouter un ingrédient (ex: tomates, pâtes, fromage...)"
+                            >
+                            <button type="button" class="add-ingredient-btn" id="add-ingredient-btn">
+                                ➕ Ajouter
+                            </button>
+                        </div>
+                        
+                        <!-- Suggestions d'ingrédients populaires -->
+                        <div class="ingredient-suggestions">
+                            <span class="suggestions-label">Suggestions :</span>
+                            <button type="button" class="suggestion-chip" data-ingredient="tomates">🍅 Tomates</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="pâtes">🍝 Pâtes</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="oeufs">🥚 Œufs</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="fromage">🧀 Fromage</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="oignons">🧅 Oignons</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="ail">🧄 Ail</button>
+                        </div>
+                    </div>
+
+                    <!-- Liste des ingrédients sélectionnés -->
+                    <div class="selected-ingredients" id="selected-ingredients-container">
+                        <h4 class="ingredients-list-title">🎒 Tes ingrédients :</h4>
+                        <div class="ingredients-list" id="ingredients-list">
+                            <div class="empty-ingredients">
+                                <p>👆 Commence par ajouter des ingrédients de ton frigo</p>
+                            </div>
+                        </div>
+                        <div class="ingredients-actions" style="display: none;">
+                            <button type="button" class="btn-search-recipes" id="search-by-ingredients-btn">
+                                🔍 Chercher des recettes
+                            </button>
+                            <button type="button" class="btn-clear-ingredients" id="clear-ingredients-btn">
+                                🗑️ Vider
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Résultats de recherche par ingrédients -->
+                    <div class="frigo-results" id="frigo-results" style="display: none;">
+                        <h4 class="frigo-results-title">🍽️ Recettes possibles avec tes ingrédients :</h4>
+                        <div class="frigo-recipes-grid" id="frigo-recipes-grid">
+                            <!-- Les recettes de l'API apparaîtront ici -->
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal pour afficher le détail d'une recette (sera utilisée plus tard) -->
+    <div class="modal" id="recipe-modal" style="display: none;">
+        <div class="modal-overlay" id="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Titre de la recette</h3>
+                <button class="modal-close" id="modal-close" aria-label="Fermer la recette">
+                    ✕
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Le contenu détaillé de la recette apparaîtra ici -->
+                <div class="recipe-details">
+                    <div class="recipe-image">
+                        <img id="modal-recipe-image" src="" alt="Image de la recette">
+                    </div>
+                    <div class="recipe-meta">
+                        <span class="recipe-time">⏱️ <span id="modal-recipe-time">30 min</span></span>
+                        <span class="recipe-difficulty">👨‍🍳 <span id="modal-recipe-difficulty">Facile</span></span>
+                        <span class="recipe-servings">🍽️ <span id="modal-recipe-servings">4 pers.</span></span>
+                    </div>
+                    <div class="recipe-content" id="modal-recipe-content">
+                        <!-- Instructions et ingrédients -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pied de page -->
+    <footer class="footer">
+        <div class="footer-content">
+            <p>🍅 patOketchup © 2025 - Anti-gaspi et cuisine créative</p>
+        </div>
+    </footer>
+
+    <!-- Script JavaScript (sera créé à l'étape 3) -->
+    <script src="script.js"></script>
+</body>
+</html>
