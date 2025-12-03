@@ -540,6 +540,21 @@ function handleSectionChange(sectionName) {
         case 'anti-gaspi':
             // TODO: Implémenter l'anti-gaspi
             break;
+        case 'auth':
+            // Afficher le formulaire d'authentification
+            const authSection = document.getElementById('auth-section');
+            if (authSection) {
+                authSection.style.display = 'block';
+            }
+            // Mettre à jour l'affichage du bouton déconnexion selon l'état
+            try {
+                const user = await _getCurrentUser();
+                const signoutBtn = document.getElementById('signout-btn');
+                if (signoutBtn) signoutBtn.style.display = user ? 'block' : 'none';
+            } catch (err) {
+                // ignore
+            }
+            break;
     }
 }
 
@@ -939,7 +954,7 @@ async function searchRecipesByIngredientsAPI(ingredients, maxResults = 12) {
         setLoadingState(false);
     }
 }
-}
+
 
 // Extraire les ingrédients d'une recette TheMealDB
 function extractMealIngredients(meal) {

@@ -59,12 +59,15 @@ body {
     display: flex;
     flex-direction: column;
     box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-    position: relative;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
     z-index: 100;
 }
 
 .sidebar-header {
-    padding: 40px 30px;
+    padding: 20px 20px; /* réduit pour remonter les onglets */
     text-align: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -117,7 +120,7 @@ body {
 /* NAVIGATION MODERNE */
 .sidebar-nav {
     flex: 1;
-    padding: 30px 20px;
+    padding: 10px 20px; /* réduire le padding pour remonter les onglets */
 }
 
 .nav-menu {
@@ -183,6 +186,7 @@ body {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    margin-left: 320px; /* décaler le contenu pour laisser la sidebar fixe */
 }
 
 .content-container {
@@ -725,6 +729,7 @@ body {
     }
     
     .sidebar {
+        position: relative; /* reflow normal pour mobile */
         width: 100%;
         min-width: auto;
         order: 2;
@@ -734,6 +739,7 @@ body {
     .main-content {
         order: 1;
         min-height: 70vh;
+        margin-left: 0; /* annuler le décalage sur mobile */
     }
     
     .content-container {
