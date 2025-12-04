@@ -871,7 +871,9 @@ async function loadRandomRecipes(number = 12) {
                     area: meal.strArea
                 };
                 
-                recipes.push(recipe);
+                // 🌍 Traduire automatiquement la recette en français
+                const translatedRecipe = translateRecipeToFrench(recipe);
+                recipes.push(translatedRecipe);
             }
         }
         
@@ -910,19 +912,24 @@ async function searchRecipes(query, type = '', number = 12) {
         const data = await makeAPICall(`${API_CONFIG.endpoints.searchByName}${encodeURIComponent(query)}`);
         
         if (data && data.meals) {
-            const recipes = data.meals.map(meal => ({
-                id: meal.idMeal,
-                name: meal.strMeal,
-                category: meal.strCategory ? meal.strCategory.toLowerCase() : 'plats',
-                difficulty: 'Moyen',
-                time: '30 min',
-                servings: 4,
-                image: enhanceImageQuality(meal.strMealThumb || 'https://images.unsplash.com/photo-1547592180-85f173990554?w=636&h=393&fit=crop&auto=format', '636x393'),
-                description: meal.strInstructions ? meal.strInstructions.substring(0, 150) + '...' : 'Délicieuse recette trouvée',
-                ingredients: [],
-                instructions: [],
-                area: meal.strArea
-            }));
+            const recipes = data.meals.map(meal => {
+                const recipe = {
+                    id: meal.idMeal,
+                    name: meal.strMeal,
+                    category: meal.strCategory ? meal.strCategory.toLowerCase() : 'plats',
+                    difficulty: 'Moyen',
+                    time: '30 min',
+                    servings: 4,
+                    image: enhanceImageQuality(meal.strMealThumb || 'https://images.unsplash.com/photo-1547592180-85f173990554?w=636&h=393&fit=crop&auto=format', '636x393'),
+                    description: meal.strInstructions ? meal.strInstructions.substring(0, 150) + '...' : 'Délicieuse recette trouvée',
+                    ingredients: [],
+                    instructions: [],
+                    area: meal.strArea
+                };
+                
+                // 🌍 Traduire automatiquement la recette en français
+                return translateRecipeToFrench(recipe);
+            });
             
             // Limiter le nombre de résultats
             const limitedRecipes = recipes.slice(0, number);
@@ -991,9 +998,12 @@ async function getRecipeDetails(recipeId) {
                 source: meal.strSource // Source de la recette
             };
             
+            // 🌍 Traduire automatiquement la recette en français si elle est en anglais
+            const translatedRecipe = translateRecipeToFrench(recipe);
+            
             // Mettre en cache
-            recipeCache.set(cacheKey, recipe);
-            return recipe;
+            recipeCache.set(cacheKey, translatedRecipe);
+            return translatedRecipe;
         }
         
         return null;
@@ -1853,6 +1863,201 @@ function translateIngredientToEnglish(frenchIngredient) {
     return normalizedInput;
 }
 
+// 🌍 Dictionnaire de traduction anglais → français pour les recettes de l'API
+const TRANSLATION_EN_TO_FR = {
+    // Création du dictionnaire inverse automatiquement
+    ...Object.fromEntries(
+        Object.entries(INGREDIENT_TRANSLATION).map(([fr, en]) => [en, fr])
+    ),
+    
+    // Ajout de termes supplémentaires pour les recettes
+    // Verbes d'action culinaire
+    'mix': 'mélanger',
+    'stir': 'remuer',
+    'cook': 'cuire',
+    'fry': 'faire frire',
+    'bake': 'cuire au four',
+    'boil': 'faire bouillir',
+    'simmer': 'faire mijoter',
+    'chop': 'hacher',
+    'slice': 'trancher',
+    'dice': 'couper en dés',
+    'heat': 'chauffer',
+    'season': 'assaisonner',
+    'add': 'ajouter',
+    'remove': 'retirer',
+    'serve': 'servir',
+    'garnish': 'garnir',
+    'prepare': 'préparer',
+    'combine': 'combiner',
+    'blend': 'mélanger',
+    'whisk': 'fouetter',
+    'fold': 'incorporer',
+    'drain': 'égoutter',
+    'rinse': 'rincer',
+    'pat dry': 'sécher en tapotant',
+    
+    // Mots courants des recettes
+    'minutes': 'minutes',
+    'minute': 'minute',
+    'hours': 'heures',
+    'hour': 'heure',
+    'degrees': 'degrés',
+    'tablespoon': 'cuillère à soupe',
+    'tablespoons': 'cuillères à soupe',
+    'teaspoon': 'cuillère à café',
+    'teaspoons': 'cuillères à café',
+    'cup': 'tasse',
+    'cups': 'tasses',
+    'ounce': 'once',
+    'ounces': 'onces',
+    'pound': 'livre',
+    'pounds': 'livres',
+    'gram': 'gramme',
+    'grams': 'grammes',
+    'kilogram': 'kilogramme',
+    'liter': 'litre',
+    'milliliter': 'millilitre',
+    'pinch': 'pincée',
+    'handful': 'poignée',
+    'dash': 'trait',
+    
+    // Adjectifs culinaires
+    'fresh': 'frais',
+    'dried': 'séché',
+    'frozen': 'congelé',
+    'chopped': 'haché',
+    'diced': 'coupé en dés',
+    'sliced': 'tranché',
+    'minced': 'émincé',
+    'grated': 'râpé',
+    'crushed': 'écrasé',
+    'ground': 'moulu',
+    'whole': 'entier',
+    'large': 'gros',
+    'small': 'petit',
+    'medium': 'moyen',
+    'hot': 'chaud',
+    'cold': 'froid',
+    'warm': 'tiède',
+    'thick': 'épais',
+    'thin': 'fin',
+    'tender': 'tendre',
+    'crispy': 'croustillant',
+    'golden': 'doré',
+    'cooked': 'cuit',
+    'raw': 'cru',
+    
+    // Ustensiles et équipements
+    'pan': 'poêle',
+    'pot': 'casserole',
+    'bowl': 'bol',
+    'plate': 'assiette',
+    'oven': 'four',
+    'stove': 'cuisinière',
+    'microwave': 'micro-ondes',
+    'refrigerator': 'réfrigérateur',
+    'knife': 'couteau',
+    'spoon': 'cuillère',
+    'fork': 'fourchette',
+    'whisk': 'fouet',
+    'spatula': 'spatule',
+    'cutting board': 'planche à découper',
+    
+    // Phrases courantes
+    'preheat oven': 'préchauffer le four',
+    'heat oil': 'chauffer l\'huile',
+    'season with salt': 'saler',
+    'season with pepper': 'poivrer',
+    'to taste': 'selon le goût',
+    'until tender': 'jusqu\'à ce que ce soit tendre',
+    'until golden': 'jusqu\'à ce que ce soit doré',
+    'mix well': 'bien mélanger',
+    'stir frequently': 'remuer souvent',
+    'let cool': 'laisser refroidir',
+    'serve hot': 'servir chaud',
+    'serve immediately': 'servir immédiatement'
+};
+
+// Fonction intelligente pour traduire le texte anglais vers le français
+function translateEnglishToFrench(englishText) {
+    if (!englishText || typeof englishText !== 'string') return englishText;
+    
+    let translatedText = englishText.toLowerCase();
+    
+    // Traduire chaque mot/expression trouvé dans le dictionnaire
+    for (const [english, french] of Object.entries(TRANSLATION_EN_TO_FR)) {
+        // Utiliser une regex avec des limites de mots pour éviter les traductions partielles incorrectes
+        const regex = new RegExp(`\\b${english.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        translatedText = translatedText.replace(regex, french);
+    }
+    
+    // Capitaliser la première lettre
+    return translatedText.charAt(0).toUpperCase() + translatedText.slice(1);
+}
+
+// Fonction pour détecter si un texte est en anglais
+function isEnglishText(text) {
+    if (!text || typeof text !== 'string') return false;
+    
+    // Mots anglais très courants dans les recettes
+    const commonEnglishWords = [
+        'the', 'and', 'or', 'with', 'in', 'on', 'to', 'for', 'of', 'until',
+        'add', 'mix', 'cook', 'heat', 'serve', 'season', 'stir', 'combine',
+        'chicken', 'beef', 'pork', 'fish', 'egg', 'milk', 'cheese', 'oil',
+        'salt', 'pepper', 'onion', 'garlic', 'tomato', 'potato', 'rice'
+    ];
+    
+    const words = text.toLowerCase().split(/\s+/);
+    const englishWordCount = words.filter(word => 
+        commonEnglishWords.includes(word.replace(/[.,!?;:]/, ''))
+    ).length;
+    
+    // Si plus de 20% des mots sont des mots anglais courants, c'est probablement de l'anglais
+    return (englishWordCount / words.length) > 0.2;
+}
+
+// Fonction pour traduire automatiquement une recette complète
+function translateRecipeToFrench(recipe) {
+    if (!recipe) return recipe;
+    
+    const translatedRecipe = { ...recipe };
+    
+    // Traduire le nom si c'est en anglais
+    if (recipe.name && isEnglishText(recipe.name)) {
+        translatedRecipe.name = translateEnglishToFrench(recipe.name);
+        translatedRecipe.originalName = recipe.name; // Garder l'original
+        translatedRecipe.isTranslated = true;
+    }
+    
+    // Traduire la description si c'est en anglais
+    if (recipe.description && isEnglishText(recipe.description)) {
+        translatedRecipe.description = translateEnglishToFrench(recipe.description);
+    }
+    
+    // Traduire les ingrédients
+    if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
+        translatedRecipe.ingredients = recipe.ingredients.map(ingredient => {
+            if (isEnglishText(ingredient)) {
+                return translateEnglishToFrench(ingredient);
+            }
+            return ingredient;
+        });
+    }
+    
+    // Traduire les instructions
+    if (recipe.instructions && Array.isArray(recipe.instructions)) {
+        translatedRecipe.instructions = recipe.instructions.map(instruction => {
+            if (isEnglishText(instruction)) {
+                return translateEnglishToFrench(instruction);
+            }
+            return instruction;
+        });
+    }
+    
+    return translatedRecipe;
+}
+
 // Vérifier les synonymes d'ingrédients (version basique)
 function checkIngredientSynonyms(userIngredient, recipeIngredient) {
     const synonyms = {
@@ -1927,7 +2132,10 @@ function displayFrigoRecipes(recipes) {
                 </div>
                 
                 <div class="recipe-content">
-                    <h3 class="recipe-title">${recipe.name}</h3>
+                    <h3 class="recipe-title">
+                        ${recipe.name}
+                        ${recipe.isTranslated ? '<span class="translation-badge" title="Traduit automatiquement du ' + (recipe.originalName || 'anglais') + '">🌍 FR</span>' : ''}
+                    </h3>
                     <p class="recipe-description">${recipe.description}</p>
                     
                     <!-- Informations Anti-Gaspi détaillées -->
@@ -2166,7 +2374,10 @@ function renderRecipes(recipes) {
                 <div class="recipe-category">${getCategoryLabel(recipe.category)}</div>
             </div>
             <div class="recipe-content">
-                <h3 class="recipe-title">${recipe.name}</h3>
+                <h3 class="recipe-title">
+                    ${recipe.name}
+                    ${recipe.isTranslated ? '<span class="translation-badge" title="Traduit automatiquement du ' + (recipe.originalName || 'anglais') + '">🌍 FR</span>' : ''}
+                </h3>
                 <p class="recipe-description">${recipe.description}</p>
                 <div class="recipe-meta">
                     <span class="recipe-time">
@@ -3391,7 +3602,10 @@ class FrigoManager {
                     </div>
                 </div>
                 <div class="recipe-content">
-                    <h4 class="recipe-title">${recipe.name}</h4>
+                    <h4 class="recipe-title">
+                        ${recipe.name}
+                        ${recipe.isTranslated ? '<span class="translation-badge" title="Traduit automatiquement du ' + (recipe.originalName || 'anglais') + '">🌍 FR</span>' : ''}
+                    </h4>
                     <p class="recipe-description">${recipe.description}</p>
                 </div>
             </article>
