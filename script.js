@@ -3,6 +3,570 @@
 // Étape 3 : JavaScript avec API Spoonacular (CORRIGÉ)
 // ========================================
 
+// ========================================
+// VARIABLES GLOBALES SYSTÈME D'AUTHENTIFICATION
+// ========================================
+
+// État global de l'utilisateur
+let currentUser = null;
+let isUserLoggedIn = false;
+
+// Base de données utilisateurs simulée (localStorage)
+const AUTH_STORAGE_KEY = 'patoketchup_users';
+const CURRENT_USER_KEY = 'patoketchup_current_user';
+
+// ========================================
+// SYSTÈME D'AUTHENTIFICATION
+// ========================================
+
+// Gestionnaire d'authentification
+class AuthManager {
+    constructor() {
+        this.users = this.loadUsers();
+        this.currentUser = this.loadCurrentUser();
+        this.initEventListeners();
+        this.updateAuthUI();
+    }
+
+    // Charger les utilisateurs depuis localStorage
+    loadUsers() {
+        const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+        return stored ? JSON.parse(stored) : [];
+    }
+
+    // Sauvegarder les utilisateurs dans localStorage
+    saveUsers() {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(this.users));
+    }
+
+    // Charger l'utilisateur actuel
+    loadCurrentUser() {
+        const stored = localStorage.getItem(CURRENT_USER_KEY);
+        if (stored) {
+            const user = JSON.parse(stored);
+            this.setCurrentUser(user);
+            return user;
+        }
+        return null;
+    }
+
+    // Sauvegarder l'utilisateur actuel
+    saveCurrentUser(user) {
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+        this.setCurrentUser(user);
+    }
+
+    // Définir l'utilisateur actuel
+    setCurrentUser(user) {
+        currentUser = user;
+        isUserLoggedIn = !!user;
+        this.updateAuthUI();
+    }
+
+    // Initialiser les écouteurs d'événements
+    initEventListeners() {
+        // Boutons d'ouverture des modales
+        document.getElementById('login-btn')?.addEventListener('click', () => this.openModal('login'));
+        document.getElementById('register-btn')?.addEventListener('click', () => this.openModal('register'));
+        document.getElementById('profile-btn')?.addEventListener('click', () => this.openModal('profile'));
+        document.getElementById('logout-btn')?.addEventListener('click', () => this.logout());
+
+        // Boutons de fermeture des modales
+        document.getElementById('login-close')?.addEventListener('click', () => this.closeModal('login'));
+        document.getElementById('register-close')?.addEventListener('click', () => this.closeModal('register'));
+        document.getElementById('profile-close')?.addEventListener('click', () => this.closeModal('profile'));
+
+        // Commutateurs entre modales
+        document.getElementById('switch-to-register')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.closeModal('login');
+            this.openModal('register');
+        });
+        document.getElementById('switch-to-login')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.closeModal('register');
+            this.openModal('login');
+        });
+
+        // Formulaires
+        document.getElementById('login-form')?.addEventListener('submit', (e) => this.handleLogin(e));
+        document.getElementById('register-form')?.addEventListener('submit', (e) => this.handleRegister(e));
+        document.getElementById('profile-update-form')?.addEventListener('submit', (e) => this.handleProfileUpdate(e));
+
+        // Fermer modales en cliquant à l'extérieur
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                this.closeModal(e.target.id.replace('-modal', ''));
+            }
+        });
+    }
+
+    // Ouvrir une modale
+    openModal(type) {
+        const modal = document.getElementById(`${type}-modal`);
+        if (modal) {
+            modal.classList.add('active');
+            if (type === 'profile' && this.currentUser) {
+                this.populateProfileForm();
+            }
+        }
+    }
+
+    // Fermer une modale
+    closeModal(type) {
+        const modal = document.getElementById(`${type}-modal`);
+        if (modal) {
+            modal.classList.remove('active');
+        }
+    }
+
+    // Gérer la connexion
+    async handleLogin(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const email = formData.get('email');
+        const password = formData.get('password');
+
+        try {
+            const user = this.users.find(u => u.email === email && u.password === password);
+            
+            if (user) {
+                user.lastLogin = new Date().toISOString();
+                this.saveUsers();
+                this.saveCurrentUser(user);
+                
+                this.closeModal('login');
+                this.showNotification('Connexion réussie ! 🎉', 'success');
+                e.target.reset();
+            } else {
+                this.showNotification('Email ou mot de passe incorrect', 'error');
+            }
+        } catch (error) {
+            console.error('Erreur de connexion:', error);
+            this.showNotification('Erreur de connexion', 'error');
+        }
+    }
+
+    // Gérer l'inscription
+    async handleRegister(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const name = formData.get('name');
+        const email = formData.get('email');
+        const password = formData.get('password');
+        const confirm = formData.get('confirm');
+
+        try {
+            if (password !== confirm) {
+                this.showNotification('Les mots de passe ne correspondent pas', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                this.showNotification('Le mot de passe doit contenir au moins 6 caractères', 'error');
+                return;
+            }
+
+            if (this.users.find(u => u.email === email)) {
+                this.showNotification('Cet email est déjà utilisé', 'error');
+                return;
+            }
+
+            const newUser = {
+                id: Date.now().toString(),
+                name,
+                email,
+                password,
+                avatar: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 1000)}?w=120&h=120&fit=crop&crop=face&auto=format`,
+                bio: '',
+                createdAt: new Date().toISOString(),
+                lastLogin: new Date().toISOString(),
+                favorites: [],
+                cookedRecipes: [],
+                savedIngredients: [],
+                stats: { recipesSaved: 0, recipesCooked: 0, gaspiSaved: 0 }
+            };
+
+            this.users.push(newUser);
+            this.saveUsers();
+            this.saveCurrentUser(newUser);
+            
+            this.closeModal('register');
+            this.showNotification(`Bienvenue ${name} ! 🌟`, 'success');
+            e.target.reset();
+
+        } catch (error) {
+            console.error('Erreur d\'inscription:', error);
+            this.showNotification('Erreur lors de l\'inscription', 'error');
+        }
+    }
+
+    // Gérer la mise à jour du profil
+    async handleProfileUpdate(e) {
+        e.preventDefault();
+        if (!this.currentUser) return;
+
+        const formData = new FormData(e.target);
+        const name = formData.get('name');
+        const email = formData.get('email');
+        const bio = formData.get('bio');
+
+        try {
+            this.currentUser.name = name;
+            this.currentUser.email = email;
+            this.currentUser.bio = bio;
+
+            const userIndex = this.users.findIndex(u => u.id === this.currentUser.id);
+            if (userIndex !== -1) {
+                this.users[userIndex] = { ...this.currentUser };
+                this.saveUsers();
+                this.saveCurrentUser(this.currentUser);
+            }
+
+            this.closeModal('profile');
+            this.showNotification('Profil mis à jour ! ✨', 'success');
+
+        } catch (error) {
+            console.error('Erreur de mise à jour:', error);
+            this.showNotification('Erreur lors de la mise à jour', 'error');
+        }
+    }
+
+    // Peupler le formulaire de profil
+    populateProfileForm() {
+        if (!this.currentUser) return;
+
+        document.getElementById('profile-name').value = this.currentUser.name || '';
+        document.getElementById('profile-email').value = this.currentUser.email || '';
+        document.getElementById('profile-bio').value = this.currentUser.bio || '';
+        
+        const profileAvatar = document.getElementById('profile-avatar');
+        if (profileAvatar && this.currentUser.avatar) {
+            profileAvatar.src = this.currentUser.avatar;
+        }
+
+        if (this.currentUser.stats) {
+            document.getElementById('recipes-saved').textContent = this.currentUser.stats.recipesSaved;
+            document.getElementById('recipes-cooked').textContent = this.currentUser.stats.recipesCooked;
+            document.getElementById('gaspi-saved').textContent = this.currentUser.stats.gaspiSaved + 'kg';
+        }
+    }
+
+    // Déconnexion
+    logout() {
+        localStorage.removeItem(CURRENT_USER_KEY);
+        this.setCurrentUser(null);
+        this.showNotification('À bientôt ! 👋', 'info');
+    }
+
+    // Mettre à jour l'interface utilisateur d'authentification
+    updateAuthUI() {
+        const authButtons = document.getElementById('auth-buttons');
+        const userProfile = document.getElementById('user-profile');
+        const userName = document.getElementById('user-name');
+        const userAvatar = document.getElementById('user-avatar');
+
+        if (isUserLoggedIn && currentUser) {
+            authButtons.style.display = 'none';
+            userProfile.style.display = 'block';
+            
+            if (userName) userName.textContent = currentUser.name;
+            if (userAvatar) userAvatar.src = currentUser.avatar;
+        } else {
+            authButtons.style.display = 'flex';
+            userProfile.style.display = 'none';
+        }
+    }
+
+    // Afficher une notification
+    showNotification(message, type = 'info') {
+        const existing = document.querySelector('.notification');
+        if (existing) existing.remove();
+
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `<span>${message}</span><button class="notification-close">&times;</button>`;
+
+        Object.assign(notification.style, {
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            background: type === 'success' ? '#10B981' : type === 'error' ? '#EF4444' : type === 'warning' ? '#F59E0B' : '#3B82F6',
+            color: 'white',
+            padding: '1rem 1.5rem',
+            borderRadius: '10px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+            zIndex: '10000',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            maxWidth: '400px'
+        });
+
+        document.body.appendChild(notification);
+        notification.querySelector('.notification-close').addEventListener('click', () => notification.remove());
+        setTimeout(() => notification.parentNode && notification.remove(), 4000);
+    }
+
+    // Méthodes utilitaires
+    isLoggedIn() { return isUserLoggedIn; }
+    getCurrentUser() { return currentUser; }
+
+    // Gestion des favoris
+    addToFavorites(recipeId) {
+        if (!isUserLoggedIn || !currentUser) {
+            this.showNotification('Connectez-vous pour sauvegarder des recettes', 'warning');
+            return false;
+        }
+
+        if (!currentUser.favorites.includes(recipeId)) {
+            currentUser.favorites.push(recipeId);
+            currentUser.stats.recipesSaved++;
+            this.saveCurrentUser(currentUser);
+            this.showNotification('Recette ajoutée aux favoris ! ❤️', 'success');
+            return true;
+        }
+        
+        this.showNotification('Cette recette est déjà dans vos favoris', 'info');
+        return false;
+    }
+
+    removeFromFavorites(recipeId) {
+        if (!isUserLoggedIn || !currentUser) return false;
+
+        const index = currentUser.favorites.indexOf(recipeId);
+        if (index > -1) {
+            currentUser.favorites.splice(index, 1);
+            currentUser.stats.recipesSaved--;
+            this.saveCurrentUser(currentUser);
+            this.showNotification('Recette retirée des favoris', 'info');
+            return true;
+        }
+        return false;
+    }
+
+    markAsCooked(recipeId) {
+        if (!isUserLoggedIn || !currentUser) return false;
+
+        if (!currentUser.cookedRecipes.includes(recipeId)) {
+            currentUser.cookedRecipes.push(recipeId);
+            currentUser.stats.recipesCooked++;
+            currentUser.stats.gaspiSaved += Math.round((Math.random() * 1.5 + 0.5) * 10) / 10;
+            this.saveCurrentUser(currentUser);
+            this.showNotification('Recette marquée comme cuisinée ! 👨‍🍳', 'success');
+            return true;
+        }
+        return false;
+    }
+}
+
+// Instance globale du gestionnaire d'authentification
+let authManager = null;
+
+// ========================================
+// FONCTIONS D'INTÉGRATION AVEC L'AUTHENTIFICATION
+// ========================================
+
+// Ajouter des boutons d'action aux recettes (favoris, cuisiné)
+function addRecipeActions(recipeElement, recipeId) {
+    if (!authManager) return;
+
+    const existingActions = recipeElement.querySelector('.recipe-actions');
+    if (existingActions) existingActions.remove();
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'recipe-actions';
+
+    const isFavorite = authManager.isLoggedIn() && 
+                      authManager.getCurrentUser()?.favorites.includes(recipeId);
+    const isCooked = authManager.isLoggedIn() && 
+                     authManager.getCurrentUser()?.cookedRecipes.includes(recipeId);
+
+    actionsDiv.innerHTML = `
+        <button class="action-btn favorite-btn ${isFavorite ? 'active' : ''}" 
+                onclick="toggleFavorite('${recipeId}', this)" 
+                title="${isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
+            ${isFavorite ? '❤️' : '🤍'}
+        </button>
+        <button class="action-btn cooked-btn ${isCooked ? 'active' : ''}" 
+                onclick="markRecipeAsCooked('${recipeId}', this)" 
+                title="${isCooked ? 'Déjà cuisinée' : 'Marquer comme cuisinée'}">
+            ${isCooked ? '👨‍🍳' : '🍽️'}
+        </button>
+        ${authManager.isLoggedIn() ? `
+            <button class="action-btn share-btn" 
+                    onclick="shareRecipe('${recipeId}')" 
+                    title="Partager cette recette">
+                📤
+            </button>
+        ` : ''}
+    `;
+
+    // Ajouter les styles si pas encore présents
+    if (!document.querySelector('#recipe-actions-style')) {
+        const style = document.createElement('style');
+        style.id = 'recipe-actions-style';
+        style.textContent = `
+            .recipe-actions {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+            
+            .recipe-card:hover .recipe-actions {
+                opacity: 1;
+            }
+            
+            .recipe-actions .action-btn {
+                width: 35px;
+                height: 35px;
+                border-radius: 50%;
+                border: none;
+                background: rgba(255, 255, 255, 0.9);
+                color: #333;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1rem;
+                transition: all 0.3s ease;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }
+            
+            .recipe-actions .action-btn:hover {
+                transform: scale(1.1);
+                background: white;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            }
+            
+            .recipe-actions .favorite-btn.active {
+                background: #ff6b6b;
+                color: white;
+            }
+            
+            .recipe-actions .cooked-btn.active {
+                background: #51cf66;
+                color: white;
+            }
+            
+            .recipe-card {
+                position: relative;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    recipeElement.appendChild(actionsDiv);
+}
+
+// Basculer le statut favori d'une recette
+function toggleFavorite(recipeId, buttonElement) {
+    if (!authManager?.isLoggedIn()) {
+        authManager.showNotification('Connectez-vous pour sauvegarder des recettes', 'warning');
+        return;
+    }
+
+    const currentUser = authManager.getCurrentUser();
+    const isFavorite = currentUser.favorites.includes(recipeId);
+
+    if (isFavorite) {
+        authManager.removeFromFavorites(recipeId);
+        buttonElement.innerHTML = '🤍';
+        buttonElement.classList.remove('active');
+        buttonElement.title = 'Ajouter aux favoris';
+    } else {
+        authManager.addToFavorites(recipeId);
+        buttonElement.innerHTML = '❤️';
+        buttonElement.classList.add('active');
+        buttonElement.title = 'Retirer des favoris';
+    }
+}
+
+// Marquer une recette comme cuisinée
+function markRecipeAsCooked(recipeId, buttonElement) {
+    if (!authManager?.isLoggedIn()) {
+        authManager.showNotification('Connectez-vous pour marquer des recettes', 'warning');
+        return;
+    }
+
+    const currentUser = authManager.getCurrentUser();
+    const isCooked = currentUser.cookedRecipes.includes(recipeId);
+
+    if (!isCooked) {
+        authManager.markAsCooked(recipeId);
+        buttonElement.innerHTML = '👨‍🍳';
+        buttonElement.classList.add('active');
+        buttonElement.title = 'Déjà cuisinée';
+        
+        // Animation de célébration
+        buttonElement.style.transform = 'scale(1.3)';
+        setTimeout(() => buttonElement.style.transform = '', 300);
+    }
+}
+
+// Partager une recette
+function shareRecipe(recipeId) {
+    const url = `${window.location.origin}${window.location.pathname}?recipe=${recipeId}`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Recette PatOketchup',
+            text: 'Découvre cette délicieuse recette !',
+            url: url
+        });
+    } else {
+        navigator.clipboard.writeText(url).then(() => {
+            authManager.showNotification('Lien copié ! 📋', 'success');
+        });
+    }
+}
+
+// Observer pour ajouter automatiquement les actions aux nouvelles cartes
+function observeRecipeCards() {
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.addedNodes.forEach((node) => {
+                if (node.nodeType === 1) { // Element node
+                    const recipeCards = node.querySelectorAll ? 
+                                       node.querySelectorAll('.recipe-card') : 
+                                       [];
+                    
+                    if (node.classList?.contains('recipe-card')) {
+                        const recipeId = node.dataset.recipeId || 
+                                       node.getAttribute('onclick')?.match(/\d+/)?.[0];
+                        if (recipeId) addRecipeActions(node, recipeId);
+                    }
+                    
+                    recipeCards.forEach(card => {
+                        const recipeId = card.dataset.recipeId || 
+                                       card.getAttribute('onclick')?.match(/\d+/)?.[0];
+                        if (recipeId) addRecipeActions(card, recipeId);
+                    });
+                }
+            });
+        });
+    });
+
+    // Observer les changements dans les conteneurs de recettes
+    const containers = [
+        document.getElementById('recipes-grid'),
+        document.getElementById('search-results'),
+        document.getElementById('frigo-recipes-grid')
+    ].filter(Boolean);
+
+    containers.forEach(container => {
+        observer.observe(container, { 
+            childList: true, 
+            subtree: true 
+        });
+    });
+}
+
 // Configuration de l'API TheMealDB (gratuite et parfaite pour recherche multi-ingrédients)
 const API_CONFIG = {
     baseUrl: 'https://www.themealdb.com/api/json/v1/1',
@@ -14,6 +578,19 @@ const API_CONFIG = {
         random: '/random.php', // Recette aléatoire
         categories: '/categories.php', // Toutes les catégories
         listIngredients: '/list.php?i=list' // Liste de tous les ingrédients
+    }
+};
+
+// Configuration de l'IA pour les suggestions de recettes
+const AI_CONFIG = {
+    // Utilisation de l'API Hugging Face (gratuite avec limitations)
+    baseUrl: 'https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium',
+    // Alternative avec API locale ou autre service gratuit
+    fallbackUrl: 'https://api.cohere.ai/v1/generate', // Backup si besoin
+    // Pas de clé API requise pour les tests, mais à configurer en production
+    headers: {
+        'Content-Type': 'application/json',
+        // 'Authorization': 'Bearer YOUR_API_KEY' // À ajouter en production
     }
 };
 
@@ -266,30 +843,39 @@ async function loadRandomRecipes(number = 12) {
     try {
         setLoadingState(true);
         
-        const data = await makeAPICall(API_CONFIG.endpoints.random, {
-            number: number,
-            tags: 'meal' // Filtrer pour avoir des vrais repas
-        });
+        // Charger plusieurs recettes aléatoires depuis TheMealDB
+        const recipes = [];
+        const promises = [];
         
-        if (data && data.recipes) {
-            const recipes = data.recipes.map(recipe => {
-                const enhancedImage = enhanceImageQuality(recipe.image || 'https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?w=636&h=393&fit=crop&auto=format', '636x393');
-                console.log('🖼️ Image URL:', recipe.image, '→', enhancedImage);
+        for (let i = 0; i < number; i++) {
+            promises.push(makeAPICall(API_CONFIG.endpoints.random));
+        }
+        
+        const results = await Promise.all(promises);
+        
+        for (const data of results) {
+            if (data && data.meals && data.meals.length > 0) {
+                const meal = data.meals[0];
                 
-                return {
-                    id: recipe.id,
-                    name: recipe.title,
-                    category: getCategoryFromDishTypes(recipe.dishTypes || []),
-                    difficulty: getDifficultyFromTime(recipe.readyInMinutes),
-                    time: `${recipe.readyInMinutes || 30} min`,
-                    servings: recipe.servings || 4,
-                    image: enhancedImage,
-                    description: recipe.summary ? recipe.summary.replace(/<[^>]*>/g, '').substring(0, 150) + '...' : 'Délicieuse recette à découvrir',
+                const recipe = {
+                    id: meal.idMeal,
+                    name: meal.strMeal,
+                    category: meal.strCategory ? meal.strCategory.toLowerCase() : 'plats',
+                    difficulty: 'Moyen',
+                    time: '30 min',
+                    servings: 4,
+                    image: enhanceImageQuality(meal.strMealThumb || 'https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?w=636&h=393&fit=crop&auto=format', '636x393'),
+                    description: meal.strInstructions ? meal.strInstructions.substring(0, 150) + '...' : 'Délicieuse recette à découvrir',
                     ingredients: [],
-                    instructions: []
+                    instructions: [],
+                    area: meal.strArea
                 };
-            });
-            
+                
+                recipes.push(recipe);
+            }
+        }
+        
+        if (recipes.length > 0) {
             // Mettre en cache
             recipeCache.set(cacheKey, recipes);
             return recipes;
@@ -320,37 +906,30 @@ async function searchRecipes(query, type = '', number = 12) {
     try {
         setLoadingState(true);
         
-        const params = {
-            query: query,
-            number: number,
-            addRecipeInformation: true,
-            fillIngredients: false
-        };
+        // Utiliser l'endpoint de recherche par nom de TheMealDB
+        const data = await makeAPICall(`${API_CONFIG.endpoints.searchByName}${encodeURIComponent(query)}`);
         
-        // Ajouter le filtre de type si spécifié
-        if (type && type !== 'all') {
-            params.type = type;
-        }
-        
-        const data = await makeAPICall(API_CONFIG.endpoints.search, params);
-        
-        if (data && data.results) {
-            const recipes = data.results.map(recipe => ({
-                id: recipe.id,
-                name: recipe.title,
-                category: getCategoryFromDishTypes(recipe.dishTypes || []),
-                difficulty: getDifficultyFromTime(recipe.readyInMinutes),
-                time: `${recipe.readyInMinutes || 30} min`,
-                servings: recipe.servings || 4,
-                image: enhanceImageQuality(recipe.image || 'https://images.unsplash.com/photo-1547592180-85f173990554?w=636&h=393&fit=crop&auto=format', '636x393'),
-                description: recipe.summary ? recipe.summary.replace(/<[^>]*>/g, '').substring(0, 150) + '...' : 'Délicieuse recette trouvée',
+        if (data && data.meals) {
+            const recipes = data.meals.map(meal => ({
+                id: meal.idMeal,
+                name: meal.strMeal,
+                category: meal.strCategory ? meal.strCategory.toLowerCase() : 'plats',
+                difficulty: 'Moyen',
+                time: '30 min',
+                servings: 4,
+                image: enhanceImageQuality(meal.strMealThumb || 'https://images.unsplash.com/photo-1547592180-85f173990554?w=636&h=393&fit=crop&auto=format', '636x393'),
+                description: meal.strInstructions ? meal.strInstructions.substring(0, 150) + '...' : 'Délicieuse recette trouvée',
                 ingredients: [],
-                instructions: []
+                instructions: [],
+                area: meal.strArea
             }));
             
+            // Limiter le nombre de résultats
+            const limitedRecipes = recipes.slice(0, number);
+            
             // Mettre en cache
-            searchCache.set(cacheKey, recipes);
-            return recipes;
+            searchCache.set(cacheKey, limitedRecipes);
+            return limitedRecipes;
         } else {
             return [];
         }
@@ -374,24 +953,42 @@ async function getRecipeDetails(recipeId) {
     }
     
     try {
-        const data = await makeAPICall(`/${recipeId}/information`, {
-            includeNutrition: false
-        });
+        // Utiliser l'endpoint TheMealDB pour obtenir les détails par ID
+        const data = await makeAPICall(`${API_CONFIG.endpoints.getById}${recipeId}`);
         
-        if (data) {
+        if (data && data.meals && data.meals.length > 0) {
+            const meal = data.meals[0];
+            
+            // Extraire les ingrédients de TheMealDB (format spécial avec strIngredient1-20)
+            const ingredients = [];
+            for (let i = 1; i <= 20; i++) {
+                const ingredient = meal[`strIngredient${i}`];
+                const measure = meal[`strMeasure${i}`];
+                if (ingredient && ingredient.trim()) {
+                    ingredients.push(measure && measure.trim() ? `${measure.trim()} ${ingredient.trim()}` : ingredient.trim());
+                }
+            }
+            
+            // Diviser les instructions en étapes
+            const instructions = meal.strInstructions 
+                ? meal.strInstructions.split(/\r\n|\r|\n/).filter(step => step.trim().length > 0)
+                : ['Instructions non disponibles'];
+            
             const recipe = {
-                id: data.id,
-                name: data.title,
-                category: getCategoryFromDishTypes(data.dishTypes || []),
-                difficulty: getDifficultyFromTime(data.readyInMinutes),
-                time: `${data.readyInMinutes || 30} min`,
-                servings: data.servings || 4,
-                image: enhanceImageQuality(data.image || 'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=800&h=600&fit=crop&auto=format', '800x600'),
-                description: data.summary ? data.summary.replace(/<[^>]*>/g, '') : 'Délicieuse recette',
-                ingredients: data.extendedIngredients ? data.extendedIngredients.map(ing => ing.original) : [],
-                instructions: data.analyzedInstructions && data.analyzedInstructions.length > 0 
-                    ? data.analyzedInstructions[0].steps.map(step => step.step)
-                    : ['Instructions non disponibles']
+                id: meal.idMeal,
+                name: meal.strMeal,
+                category: meal.strCategory ? meal.strCategory.toLowerCase() : 'plats',
+                difficulty: 'Moyen', // TheMealDB n'a pas de difficulté, on met une valeur par défaut
+                time: '30 min', // TheMealDB n'a pas de temps, on met une valeur par défaut
+                servings: 4, // Valeur par défaut
+                image: enhanceImageQuality(meal.strMealThumb || 'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=800&h=600&fit=crop&auto=format', '800x600'),
+                description: meal.strInstructions ? meal.strInstructions.substring(0, 150) + '...' : 'Délicieuse recette',
+                ingredients: ingredients,
+                instructions: instructions,
+                area: meal.strArea, // Origine géographique du plat
+                tags: meal.strTags ? meal.strTags.split(',') : [],
+                youtube: meal.strYoutube, // Lien YouTube si disponible
+                source: meal.strSource // Source de la recette
             };
             
             // Mettre en cache
@@ -443,12 +1040,138 @@ function setLoadingState(loading) {
 }
 
 // ========================================
+// GESTION DE LA SECTION FAVORIS
+// ========================================
+
+// Afficher les recettes favorites de l'utilisateur
+function displayFavorites() {
+    if (!authManager?.isLoggedIn()) {
+        showFavoritesPrompt();
+        return;
+    }
+
+    const currentUser = authManager.getCurrentUser();
+    const favoriteRecipes = currentUser.favorites;
+
+    if (favoriteRecipes.length === 0) {
+        showEmptyFavorites();
+        return;
+    }
+
+    // Ici, vous pourriez récupérer les détails complets des recettes favorites
+    // Pour l'instant, on affiche un placeholder avec les IDs
+    const favoritesContainer = document.getElementById('favorites-content') || 
+                               document.querySelector('[data-section="favorites"]')?.parentElement?.querySelector('.content-section');
+    
+    if (favoritesContainer) {
+        favoritesContainer.innerHTML = `
+            <div class="favorites-section">
+                <div class="section-header">
+                    <h2>❤️ Mes Recettes Favorites</h2>
+                    <p>Retrouvez toutes vos recettes sauvegardées (${favoriteRecipes.length})</p>
+                </div>
+                <div class="favorites-grid">
+                    ${favoriteRecipes.map(recipeId => `
+                        <div class="favorite-recipe-card" data-recipe-id="${recipeId}">
+                            <div class="recipe-placeholder">
+                                <div class="placeholder-image">🍽️</div>
+                                <div class="recipe-info">
+                                    <h4>Recette #${recipeId}</h4>
+                                    <p>Recette sauvegardée</p>
+                                </div>
+                                <div class="recipe-actions-mini">
+                                    <button onclick="removeFavorite('${recipeId}')" class="remove-favorite" title="Retirer des favoris">❌</button>
+                                    <button onclick="openRecipeModal('${recipeId}')" class="view-recipe" title="Voir la recette">👀</button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="favorites-stats">
+                    <div class="stat-card">
+                        <span class="stat-number">${favoriteRecipes.length}</span>
+                        <span class="stat-label">Recettes sauvées</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number">${currentUser.stats.recipesCooked}</span>
+                        <span class="stat-label">Recettes cuisinées</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number">${currentUser.stats.gaspiSaved}kg</span>
+                        <span class="stat-label">Gaspillage évité</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Afficher un message pour encourager la connexion
+function showFavoritesPrompt() {
+    const favoritesContainer = document.getElementById('favorites-content') || 
+                               document.querySelector('[data-section="favorites"]')?.parentElement?.querySelector('.content-section');
+    
+    if (favoritesContainer) {
+        favoritesContainer.innerHTML = `
+            <div class="auth-prompt">
+                <div class="prompt-icon">❤️</div>
+                <h3>Sauvegardez vos recettes favorites !</h3>
+                <p>Connectez-vous pour pouvoir sauvegarder vos recettes préférées et les retrouver facilement.</p>
+                <div class="prompt-actions">
+                    <button class="btn btn-primary" onclick="authManager.openModal('login')">
+                        Se connecter
+                    </button>
+                    <button class="btn btn-outline" onclick="authManager.openModal('register')">
+                        S'inscrire
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Afficher un message quand il n'y a pas de favoris
+function showEmptyFavorites() {
+    const favoritesContainer = document.getElementById('favorites-content') || 
+                               document.querySelector('[data-section="favorites"]')?.parentElement?.querySelector('.content-section');
+    
+    if (favoritesContainer) {
+        favoritesContainer.innerHTML = `
+            <div class="empty-favorites">
+                <div class="empty-icon">🍽️</div>
+                <h3>Aucune recette favorite pour l'instant</h3>
+                <p>Explorez nos recettes et cliquez sur 🤍 pour les ajouter à vos favoris !</p>
+                <button class="btn btn-primary" onclick="switchSection('home')">
+                    Découvrir des recettes
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Retirer une recette des favoris depuis la page favoris
+function removeFavorite(recipeId) {
+    if (authManager?.removeFromFavorites(recipeId)) {
+        // Actualiser l'affichage des favoris
+        displayFavorites();
+    }
+}
+
+// ========================================
 // FONCTIONS D'INITIALISATION
 // ========================================
 
 // Initialisation de l'application
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('🍅 PatOketchup App - Initialisation...');
+    
+    // Initialiser le système d'authentification
+    authManager = new AuthManager();
+    console.log('✅ Système d\'authentification initialisé');
+    
+    // Observer les cartes de recettes pour y ajouter des actions
+    observeRecipeCards();
+    console.log('✅ Observateur des recettes initialisé');
     
     // Initialiser les composants
     initializeEventListeners();
@@ -535,11 +1258,12 @@ function handleSectionChange(sectionName) {
             }
             break;
         case 'frigo':
-            // Initialiser la section Mon Frigo
-            initializeFrigoSection();
+            // La section Mon Frigo est déjà initialisée avec FrigoManager
+            console.log('🧊 Section Mon Frigo activée');
             break;
         case 'favorites':
-            // TODO: Implémenter les favoris
+            // Afficher les recettes favorites
+            displayFavorites();
             break;
         case 'shopping':
             // TODO: Implémenter la liste de courses
@@ -715,7 +1439,7 @@ function displayLocalSuggestions(recipes) {
     if (!gridContainer) return;
     
     gridContainer.innerHTML = recipes.map(recipe => `
-        <article class="recipe-card local-suggestion" data-recipe-id="${recipe.id}" onclick="openRecipeModal(${recipe.id})">
+        <article class="recipe-card local-suggestion" data-recipe-id="${recipe.id}" onclick="openRecipeModal('${recipe.id}')">
             <div class="recipe-image">
                 <img src="${recipe.image}" alt="${recipe.name}" loading="lazy">
                 <div class="recipe-category">${getCategoryLabel(recipe.category)}</div>
@@ -1435,7 +2159,7 @@ function renderRecipes(recipes) {
     }
     
     const recipesHTML = recipes.map(recipe => `
-        <article class="recipe-card" data-recipe-id="${recipe.id}" onclick="openRecipeModal(${recipe.id})">
+        <article class="recipe-card" data-recipe-id="${recipe.id}" onclick="openRecipeModal('${recipe.id}')">
             <div class="recipe-image">
                 <img src="${recipe.image}" alt="${recipe.name}" loading="lazy" 
                      onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop&auto=format'; console.log('Image failed to load:', '${recipe.image}');">
@@ -1516,16 +2240,21 @@ function getCategoryLabel(category) {
 
 // Ouvrir le modal avec les détails de la recette depuis l'API
 async function openRecipeModal(recipeId) {
+    console.log('🔍 Tentative d\'ouverture recette avec ID:', recipeId, 'Type:', typeof recipeId);
+    
     try {
         // Afficher un loading dans le modal
         showModalLoading();
         
         // Récupérer les détails depuis l'API ou fallback
         let recipe = await getRecipeDetails(recipeId);
+        console.log('📊 Résultat getRecipeDetails:', recipe);
         
         // Si pas de détails API, utiliser les données locales
         if (!recipe) {
-            recipe = fallbackRecipes.find(r => r.id === recipeId);
+            console.log('🔄 Tentative de recherche dans fallbackRecipes...');
+            recipe = fallbackRecipes.find(r => r.id == recipeId || r.id === recipeId);
+            console.log('📋 Recette trouvée dans fallback:', recipe);
         }
         
         if (!recipe) {
@@ -1535,7 +2264,7 @@ async function openRecipeModal(recipeId) {
             return;
         }
         
-        console.log('📖 Ouverture recette API:', recipe.name);
+        console.log('📖 Ouverture recette:', recipe.name);
         
         // Créer le contenu du modal avec les données API
         const modalHTML = `
@@ -1769,3 +2498,997 @@ document.addEventListener('keydown', function(event) {
 });
 
 console.log('🍅 Script PatOketchup avec API chargé !');
+
+// ========================================
+// SYSTÈME INTELLIGENT "MON FRIGO" 
+// ========================================
+
+// Variables pour Mon Frigo
+let frigoIngredients = [];
+
+// Gestionnaire de classe pour Mon Frigo
+class FrigoManager {
+    constructor() {
+        this.ingredients = [];
+        this.aiSuggestions = [];
+        this.initializeEventListeners();
+    }
+
+    // Initialiser les écouteurs d'événements
+    initializeEventListeners() {
+        // Ajouter un ingrédient via input
+        const addBtn = document.getElementById('add-ingredient-btn');
+        const input = document.getElementById('frigo-ingredient-input');
+        
+        if (addBtn && input) {
+            addBtn.addEventListener('click', () => this.addIngredient(input.value));
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.addIngredient(input.value);
+                }
+            });
+        }
+
+        // Suggestions rapides
+        document.querySelectorAll('.suggestion-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const ingredient = chip.dataset.ingredient;
+                this.addIngredient(ingredient);
+            });
+        });
+
+        // Boutons d'actions
+        const aiBtn = document.getElementById('ai-suggestions-btn');
+        const searchBtn = document.getElementById('search-by-ingredients-btn');
+        const clearBtn = document.getElementById('clear-ingredients-btn');
+
+        if (aiBtn) aiBtn.addEventListener('click', () => this.getAISuggestions());
+        if (searchBtn) searchBtn.addEventListener('click', () => this.searchRecipesByIngredients());
+        if (clearBtn) clearBtn.addEventListener('click', () => this.clearIngredients());
+    }
+
+    // Ajouter un ingrédient
+    addIngredient(ingredient) {
+        if (!ingredient || ingredient.trim() === '') return;
+        
+        const cleanIngredient = ingredient.trim().toLowerCase();
+        
+        if (this.ingredients.includes(cleanIngredient)) {
+            showNotification('Cet ingrédient est déjà dans votre liste !', 'warning');
+            return;
+        }
+
+        this.ingredients.push(cleanIngredient);
+        this.updateIngredientsDisplay();
+        this.clearInput();
+        
+        const funMessages = [
+            `🎉 "${ingredient}" a rejoint l'équipe ! Prêt à cuisiner ?`,
+            `✨ Super ! "${ingredient}" est maintenant dans ton frigo magique !`,
+            `👏 Excellent choix ! "${ingredient}" va faire des merveilles !`,
+            `🌟 "${ingredient}" ajouté avec succès ! L'aventure continue !`,
+            `💫 Perfect ! "${ingredient}" est prêt pour la magie culinaire !`
+        ];
+        
+        showNotification(funMessages[Math.floor(Math.random() * funMessages.length)], 'success');
+    }
+
+    // Supprimer un ingrédient
+    removeIngredient(ingredient) {
+        this.ingredients = this.ingredients.filter(i => i !== ingredient);
+        this.updateIngredientsDisplay();
+        
+        const funRemoveMessages = [
+            `🗑️ "${ingredient}" a dit au revoir ! À bientôt peut-être ?`,
+            `👋 "${ingredient}" a quitté l'équipe ! Merci pour sa participation !`,
+            `✌️ "${ingredient}" retiré avec élégance !`,
+            `🚀 "${ingredient}" s'envole vers d'autres aventures !`
+        ];
+        
+        showNotification(funRemoveMessages[Math.floor(Math.random() * funRemoveMessages.length)], 'info');
+    }
+
+    // Vider tous les ingrédients
+    clearIngredients() {
+        this.ingredients = [];
+        this.updateIngredientsDisplay();
+        this.hideResults();
+        
+        const funClearMessages = [
+            '🧹 Frigo nettoyé ! Prêt pour de nouveaux ingrédients !',
+            '✨ Table rase ! À nous les nouvelles aventures !',
+            '🔄 Reset complet ! C\'est reparti !',
+            '🌟 Frigo vidé avec brio ! Place à la créativité !'
+        ];
+        
+        showNotification(funClearMessages[Math.floor(Math.random() * funClearMessages.length)], 'info');
+    }
+
+    // Vider l'input
+    clearInput() {
+        const input = document.getElementById('frigo-ingredient-input');
+        if (input) input.value = '';
+    }
+
+    // Mettre à jour l'affichage des ingrédients
+    updateIngredientsDisplay() {
+        const container = document.getElementById('ingredients-list');
+        const actionsContainer = document.querySelector('.ingredients-actions');
+
+        if (!container || !actionsContainer) return;
+
+        if (this.ingredients.length === 0) {
+            container.innerHTML = `
+                <div class="empty-ingredients">
+                    <p>👆 Sélectionnez vos ingrédients pour commencer</p>
+                </div>
+            `;
+            actionsContainer.style.display = 'none';
+        } else {
+            container.innerHTML = this.ingredients.map(ingredient => `
+                <div class="ingredient-tag">
+                    <span class="ingredient-name">${ingredient}</span>
+                    <button class="remove-ingredient" onclick="frigoManager.removeIngredient('${ingredient}')">❌</button>
+                </div>
+            `).join('');
+            actionsContainer.style.display = 'flex';
+        }
+    }
+
+    // Obtenir des suggestions de l'IA
+    async getAISuggestions() {
+        if (this.ingredients.length === 0) {
+            showNotification('Veuillez d\'abord ajouter des ingrédients !', 'warning');
+            return;
+        }
+
+        const aiSection = document.getElementById('ai-suggestions-section');
+        const aiResults = document.getElementById('ai-results');
+        const aiLoading = document.getElementById('ai-loading');
+
+        if (!aiSection || !aiResults || !aiLoading) return;
+
+        // Afficher la section et le loading
+        aiSection.style.display = 'block';
+        aiLoading.style.display = 'flex';
+        aiResults.innerHTML = '';
+
+        // Messages de loading amusants
+        const loadingMessages = [
+            '🧠 L\'IA réfléchit intensément à vos ingrédients...',
+            '✨ Magie culinaire en cours de création...',
+            '👨‍🍳 Votre chef virtuel mijote quelque chose de génial...',
+            '🔮 Consultation de la boule de cristal gastronomique...',
+            '🎭 L\'IA enfile sa toque de chef...',
+            '🌟 Transformation d\'ingrédients en pure magie...',
+            '🚀 Voyage dans l\'univers des saveurs...'
+        ];
+        
+        const loadingP = aiLoading.querySelector('p');
+        if (loadingP) {
+            loadingP.textContent = loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+        }
+
+        try {
+            // Générer une suggestion avec l'IA locale
+            const suggestion = await this.generateRecipeWithAI(this.ingredients);
+            
+            // Masquer le loading
+            aiLoading.style.display = 'none';
+            
+            // Afficher le résultat
+            this.displayAISuggestion(suggestion);
+            
+        } catch (error) {
+            console.error('Erreur IA:', error);
+            aiLoading.style.display = 'none';
+            
+            // Afficher une suggestion de fallback
+            const fallbackSuggestion = this.generateFallbackSuggestion(this.ingredients);
+            this.displayAISuggestion(fallbackSuggestion);
+        }
+    }
+
+    // Générer une recette avec IA locale (simulation intelligente)
+    async generateRecipeWithAI(ingredients) {
+        // Simulation d'une IA sophistiquée avec des règles culinaires
+        const recipes = this.getRecipeTemplates();
+        const bestMatch = this.findBestRecipeMatch(ingredients, recipes);
+        
+        // Si on a une correspondance parfaite avec un template, l'utiliser
+        if (bestMatch && bestMatch.matchPercentage >= 90) {
+            return bestMatch;
+        }
+        
+        // Sinon, générer une recette personnalisée avec TOUS les ingrédients
+        return this.generateFullCustomRecipe(ingredients);
+    }
+
+    // Templates de recettes basées sur des combinaisons populaires
+    getRecipeTemplates() {
+        return [
+            {
+                ingredients: ['œufs', 'pâtes', 'fromage'],
+                name: 'Carbonara Express du Chef ! 🍝✨',
+                description: 'Ohh là là ! Tu as les PARFAITS ingrédients pour une carbonara divine ! C\'est comme si ton frigo était italien 😍. Prépare-toi à impressionner tes papilles (et tes voisins qui vont sentir cette merveille) !',
+                instructions: [
+                    '🍝 Lance tes pâtes dans l\'eau bouillante salée - pendant qu\'elles nagent joyeusement...',
+                    '🥚 Bats tes œufs avec le fromage comme si tu mélangeais de la magie pure !',
+                    '🔥 Quand tes pâtes sont al dente (tu sais, ce petit croquant parfait), égoute-les rapidement',
+                    '💫 C\'est LE moment crucial : mélange VITE les pâtes chaudes avec ton mélange œufs-fromage',
+                    '🌶️ Ajoute du poivre noir généreusement et... TADAAAA ! Tu viens de faire de la magie culinaire !'
+                ],
+                time: '15 minutes chrono',
+                difficulty: 'Facile comme bonjour'
+            },
+            {
+                ingredients: ['œufs', 'fromage', 'beurre'],
+                name: 'L\'Omelette de la Fierté ! 🥚👨‍🍳',
+                description: 'Waouh ! Avec ces 3 champions dans ton frigo, tu vas faire l\'omelette la plus moelleuse de ta VIE ! Tes œufs vont devenir des nuages dorés et ton fromage va fondre comme dans un rêve... 🤤',
+                instructions: [
+                    '🥚 Casse tes œufs avec confiance et bats-les comme un chef ! Un peu de sel, un soupçon de poivre',
+                    '🧈 Fais fondre ton beurre dans une poêle qui brillera de mille feux',
+                    '✨ Verse tes œufs et laisse la magie opérer en remuant TRÈS délicatement',
+                    '🧀 Quand ça commence à prendre, parsème généreusement de fromage sur UNE moitié',
+                    '🎭 Plie ton omelette comme un artiste et glisse-la dans l\'assiette... Bravo chef !'
+                ],
+                time: '8 minutes de bonheur',
+                difficulty: 'Même un débutant y arrive !'
+            },
+            {
+                ingredients: ['pommes de terre', 'œufs', 'oignons'],
+                name: 'Tortilla Española ! ¡Olé! 🇪🇸',
+                description: 'Incroyable ! Tu as exactement ce qu\'il faut pour faire la tortilla espagnole authentique ! C\'est comme si l\'Espagne avait livré directement dans ton frigo 🌟. Prépare-toi à un voyage culinaire ensoleillé !',
+                instructions: [
+                    '🥔 Épluche tes pommes de terre avec amour et coupe-les en jolies rondelles fines',
+                    '🧅 Émince tes oignons (oui, tu peux pleurer, c\'est permis ! 😭)',
+                    '🔥 Dans ta poêle avec de l\'huile d\'olive, fais dorer tout ça jusqu\'à ce que ce soit tendre',
+                    '🥚 Bats tes œufs comme un flamenco et ajoute tes légumes dorés',
+                    '🎪 Retourne ta tortilla (c\'est le moment épique !) et cuisine l\'autre côté',
+                    '😋 Sers tiède et sens-toi fier.e comme un vrai chef espagnol !'
+                ],
+                time: '30 minutes de plaisir',
+                difficulty: 'Aventurier culinaire'
+            },
+            {
+                ingredients: ['riz', 'œufs', 'oignons'],
+                name: 'Riz Sauté de l\'Amitié ! 🍚💝',
+                description: 'Oh que c\'est parfait ! Tu vas transformer ces ingrédients simples en festin ! C\'est exactement le genre de plat qui réunit les gens autour de la table avec des sourires et des "mmmh" de satisfaction 😊',
+                instructions: [
+                    '🍚 Si tu as du riz de la veille, c\'est PARFAIT ! Sinon, cuis-en et laisse-le refroidir tranquillement',
+                    '🥚 Brouille tes œufs dans la poêle jusqu\'à ce qu\'ils soient tout moelleux',
+                    '🧅 Fais danser tes oignons dans la poêle jusqu\'à ce qu\'ils deviennent translucides',
+                    '🔥 Ajoute ton riz et mélange tout avec passion !',
+                    '✨ Assaisonne selon ton cœur (sauce soja si tu en as, sinon sel et poivre font l\'affaire)',
+                    '🎉 Déguste ce bonheur simple et partage avec ceux que tu aimes !'
+                ],
+                time: '20 minutes de joie',
+                difficulty: 'Même les enfants adorent aider !'
+            }
+        ];
+    }
+
+    // Trouver la meilleure recette correspondante
+    findBestRecipeMatch(userIngredients, templates) {
+        let bestMatch = null;
+        let bestScore = 0;
+
+        for (const template of templates) {
+            let score = 0;
+            let missingIngredients = [];
+            
+            for (const ingredient of template.ingredients) {
+                if (userIngredients.some(ui => ui.includes(ingredient) || ingredient.includes(ui))) {
+                    score += 1;
+                } else {
+                    missingIngredients.push(ingredient);
+                }
+            }
+            
+            // Bonus si tous les ingrédients sont disponibles
+            if (missingIngredients.length === 0) {
+                score += 2;
+            }
+            
+            // Calculer le pourcentage de correspondance
+            const matchPercentage = score / template.ingredients.length;
+            
+            if (matchPercentage >= 0.7 && score > bestScore) {
+                bestScore = score;
+                bestMatch = {
+                    ...template,
+                    missingIngredients,
+                    matchPercentage: Math.round(matchPercentage * 100)
+                };
+            }
+        }
+
+        return bestMatch;
+    }
+
+    // Générer une recette personnalisée avec TOUS les ingrédients
+    generateFullCustomRecipe(ingredients) {
+        const recipe = {
+            name: this.generateCustomRecipeName(ingredients),
+            description: this.generateCustomDescription(ingredients),
+            instructions: this.generateDetailedInstructions(ingredients),
+            time: this.estimateCookingTime(ingredients),
+            difficulty: this.assessDifficulty(ingredients),
+            matchPercentage: 100,
+            custom: true,
+            allIngredients: ingredients // Marquer que tous les ingrédients sont utilisés
+        };
+        
+        return recipe;
+    }
+
+    // Générer un nom créatif pour la recette
+    generateCustomRecipeName(ingredients) {
+        const creativePrefixes = [
+            '🎨 Création Unique', '✨ Plat Magique', '🚀 Fusion Créative', 
+            '🎪 Spectacle Culinaire', '💫 Merveille Improvisée', '🌟 Chef-d\'œuvre'
+        ];
+        
+        const mainIngredient = ingredients[0];
+        const prefix = creativePrefixes[Math.floor(Math.random() * creativePrefixes.length)];
+        
+        if (ingredients.length <= 2) {
+            return `${prefix} : ${ingredients.join(' & ')}`;
+        } else if (ingredients.length === 3) {
+            return `${prefix} : Trio ${ingredients.join(', ')}`;
+        } else {
+            return `${prefix} aux ${ingredients.length} Saveurs`;
+        }
+    }
+
+    // Générer une description personnalisée
+    generateCustomDescription(ingredients) {
+        const enthusiasm = [
+            'Incroyable ! Tu as', 'Fantastique ! Avec', 'Génial ! Tes', 'Parfait ! Ces'
+        ];
+        
+        const compliments = [
+            'on va faire des merveilles', 'ça va être délicieux', 'tu vas être fier.e du résultat',
+            'ça sent déjà le succès', 'on va créer quelque chose d\'unique'
+        ];
+        
+        const intro = enthusiasm[Math.floor(Math.random() * enthusiasm.length)];
+        const outro = compliments[Math.floor(Math.random() * compliments.length)];
+        
+        return `${intro} ${ingredients.join(', ')} dans ton frigo ! Avec cette combinaison, ${outro} ! 🎯`;
+    }
+
+    // Générer des instructions détaillées qui utilisent TOUS les ingrédients
+    generateDetailedInstructions(ingredients) {
+        const instructions = [];
+        
+        // Introduction enthousiaste
+        instructions.push('🎬 Action ! Préparons tous tes ingrédients sur le plan de travail comme des stars !');
+        
+        // Analyser les ingrédients et créer une séquence logique
+        const sequence = this.analyzeIngredientSequence(ingredients);
+        
+        // Générer les instructions selon la séquence
+        sequence.forEach((step, index) => {
+            instructions.push(step.instruction);
+        });
+        
+        // Conclusion personnalisée
+        const conclusions = [
+            '🎉 Et voilà ! Tous tes ingrédients ont joué leur rôle à la perfection !',
+            '👏 Bravo ! Tu as utilisé chaque ingrédient avec brio !',
+            '🌟 Parfait ! Chaque saveur a sa place dans cette création !',
+            '🏆 Mission accomplie ! Tous tes ingrédients sont devenus un délice !'
+        ];
+        
+        instructions.push(conclusions[Math.floor(Math.random() * conclusions.length)]);
+        
+        return instructions;
+    }
+
+    // Analyser la séquence logique d'utilisation des ingrédients
+    analyzeIngredientSequence(ingredients) {
+        const sequence = [];
+        
+        // 1. Préparer les ingrédients qui demandent de la cuisson
+        const needsCooking = ingredients.filter(ing => 
+            this.needsCooking(ing)
+        );
+        
+        const seasonings = ingredients.filter(ing => 
+            this.isSeasoning(ing)
+        );
+        
+        const fresh = ingredients.filter(ing => 
+            this.isFresh(ing)
+        );
+        
+        const dairy = ingredients.filter(ing => 
+            this.isDairy(ing)
+        );
+        
+        // Séquence de cuisson logique
+        if (needsCooking.length > 0) {
+            needsCooking.forEach(ingredient => {
+                sequence.push({
+                    ingredient,
+                    instruction: this.getCookingInstruction(ingredient)
+                });
+            });
+        }
+        
+        // Ajouter les produits laitiers (beurre, crème, fromage)
+        if (dairy.length > 0) {
+            dairy.forEach(ingredient => {
+                sequence.push({
+                    ingredient,
+                    instruction: this.getDairyInstruction(ingredient, needsCooking)
+                });
+            });
+        }
+        
+        // Ajouter les assaisonnements et condiments
+        if (seasonings.length > 0) {
+            seasonings.forEach(ingredient => {
+                sequence.push({
+                    ingredient,
+                    instruction: this.getSeasoningInstruction(ingredient)
+                });
+            });
+        }
+        
+        // Ajouter les ingrédients frais en dernier
+        if (fresh.length > 0) {
+            fresh.forEach(ingredient => {
+                sequence.push({
+                    ingredient,
+                    instruction: this.getFreshInstruction(ingredient)
+                });
+            });
+        }
+        
+        return sequence;
+    }
+
+    // Déterminer si un ingrédient nécessite une cuisson
+    needsCooking(ingredient) {
+        const cookingIngredients = [
+            'pâtes', 'riz', 'pommes de terre', 'œufs', 'viande', 'poulet', 
+            'poisson', 'légumes', 'haricots', 'lentilles', 'quinoa'
+        ];
+        return cookingIngredients.some(cook => 
+            ingredient.toLowerCase().includes(cook) || cook.includes(ingredient.toLowerCase())
+        );
+    }
+
+    // Déterminer si c'est un assaisonnement/condiment
+    isSeasoning(ingredient) {
+        const seasonings = [
+            'ketchup', 'moutarde', 'mayonnaise', 'sauce', 'vinaigre', 
+            'huile', 'sel', 'poivre', 'épices', 'herbes', 'ail', 'oignon'
+        ];
+        return seasonings.some(season => 
+            ingredient.toLowerCase().includes(season) || season.includes(ingredient.toLowerCase())
+        );
+    }
+
+    // Déterminer si c'est un produit laitier
+    isDairy(ingredient) {
+        const dairy = ['beurre', 'crème', 'fromage', 'lait', 'yaourt'];
+        return dairy.some(d => 
+            ingredient.toLowerCase().includes(d) || d.includes(ingredient.toLowerCase())
+        );
+    }
+
+    // Déterminer si c'est un ingrédient frais
+    isFresh(ingredient) {
+        const fresh = [
+            'salade', 'tomates', 'concombre', 'radis', 'persil', 
+            'basilic', 'ciboulette', 'citron', 'avocat'
+        ];
+        return fresh.some(f => 
+            ingredient.toLowerCase().includes(f) || f.includes(ingredient.toLowerCase())
+        );
+    }
+
+    // Instructions de cuisson spécifiques
+    getCookingInstruction(ingredient) {
+        const cookingInstructions = {
+            'pâtes': '🍝 Lance tes pâtes dans une grande casserole d\'eau bouillante bien salée !',
+            'riz': '� Fais cuire ton riz dans de l\'eau bouillante (2 volumes d\'eau pour 1 de riz) !',
+            'pommes de terre': '🥔 Cuis tes pommes de terre à l\'eau ou à la poêle selon ton envie !',
+            'œufs': '🥚 Prépare tes œufs selon ton humeur : brouillés, au plat, ou en omelette !',
+            'default': `🔥 Prépare ton/ta ${ingredient} avec amour - la cuisson, c'est ton moment de magie !`
+        };
+        
+        for (const [key, instruction] of Object.entries(cookingInstructions)) {
+            if (ingredient.toLowerCase().includes(key)) {
+                return instruction;
+            }
+        }
+        
+        return cookingInstructions.default;
+    }
+
+    // Instructions pour les produits laitiers
+    getDairyInstruction(ingredient, cookedItems) {
+        if (ingredient.toLowerCase().includes('beurre')) {
+            if (cookedItems.some(item => item.includes('pâtes'))) {
+                return '🧈 Quand tes pâtes sont cuites et égouttées, ajoute une belle noix de beurre et mélange !';
+            }
+            return '🧈 Ajoute ton beurre pour donner de l\'onctuosité et de la saveur !';
+        }
+        
+        if (ingredient.toLowerCase().includes('fromage')) {
+            return '🧀 Ajoute ton fromage râpé ou en morceaux pour le côté gourmand !';
+        }
+        
+        if (ingredient.toLowerCase().includes('crème')) {
+            return '🥛 Incorpore ta crème pour une texture veloutée divine !';
+        }
+        
+        return `🥛 Ajoute ton ${ingredient} pour enrichir ton plat !`;
+    }
+
+    // Instructions pour les assaisonnements
+    getSeasoningInstruction(ingredient) {
+        if (ingredient.toLowerCase().includes('ketchup')) {
+            return '🍅 Pour finir, ajoute une touche de ketchup sur ton plat ou mélange-le délicatement !';
+        }
+        
+        if (ingredient.toLowerCase().includes('moutarde')) {
+            return '🌭 Une pointe de moutarde pour relever les saveurs !';
+        }
+        
+        if (ingredient.toLowerCase().includes('ail')) {
+            return '🧄 Fais revenir ton ail émincé pour parfumer toute la préparation !';
+        }
+        
+        return `✨ Assaisonne avec ton ${ingredient} selon ton goût !`;
+    }
+
+    // Instructions pour les ingrédients frais
+    getFreshInstruction(ingredient) {
+        return `🌿 Termine avec ton ${ingredient} frais pour une touche de fraîcheur !`;
+    }
+
+    // Estimer le temps de cuisson
+    estimateCookingTime(ingredients) {
+        if (ingredients.some(i => i.includes('pâtes'))) {
+            return '15-20 minutes de plaisir';
+        }
+        if (ingredients.some(i => i.includes('riz'))) {
+            return '20-25 minutes de détente';
+        }
+        if (ingredients.length <= 3) {
+            return '10-15 minutes express';
+        }
+        return '20-30 minutes de création';
+    }
+
+    // Évaluer la difficulté
+    assessDifficulty(ingredients) {
+        if (ingredients.length <= 2) {
+            return 'Ultra facile !';
+        }
+        if (ingredients.length <= 4) {
+            return 'Facile comme bonjour !';
+        }
+        return 'Aventurier culinaire !';
+    }
+
+    // Générer une recette personnalisée simple (fallback)
+    generateCustomRecipe(ingredients) {
+        const funIntros = [
+            '🎨 Alors... tu veux être créatif ? J\'ADORE ça ! Voici ce qu\'on va faire avec tes trésors :',
+            '✨ OH ! Regarde-moi ces ingrédients ! Tu sais quoi ? On va inventer quelque chose d\'extraordinaire !',
+            '🚀 Houston, nous avons des ingrédients ! Prépare-toi au décollage culinaire !',
+            '🎪 Mesdames et Messieurs, voici le spectacle du jour avec tes merveilleux ingrédients !'
+        ];
+
+        const baseInstructions = [
+            '📋 D\'abord, pose tous tes ingrédients devant toi comme des petits soldats prêts au combat !',
+            '🔥 Chauffe ta poêle ou casserole - on va faire chauffer l\'ambiance !',
+        ];
+
+        // Logique de génération basée sur les ingrédients
+        const customInstructions = this.generateFunInstructionsFromIngredients(ingredients);
+        
+        const funNames = [
+            `💫 Le Plat Magique aux ${ingredients.slice(0, 3).join(' & ')}`,
+            `🎭 L'Impro Culinaire : "${ingredients[0]} et ses Copains"`,
+            `🌟 La Création Spontanée du Chef ${Math.random() > 0.5 ? 'Intrépide' : 'Aventurier'}`,
+            `🎪 Le Spectacle des ${ingredients.length} Ingrédients`
+        ];
+
+        return {
+            name: funNames[Math.floor(Math.random() * funNames.length)],
+            description: funIntros[Math.floor(Math.random() * funIntros.length)],
+            instructions: [...baseInstructions, ...customInstructions],
+            time: '20-30 minutes de pur bonheur',
+            difficulty: 'Aventurier culinaire !',
+            matchPercentage: 100,
+            custom: true
+        };
+    }
+    generateFunInstructionsFromIngredients(ingredients) {
+        const instructions = [];
+        
+        // Messages d'encouragement aléatoires
+        const encouragements = [
+            'Tu vas être fier.e de toi !', 'C\'est parti pour la magie !', 'Allez, on y croit !',
+            'Tu sens cette bonne odeur qui arrive ?', 'Ça va être délicieux !', 'Chef, à vous de jouer !'
+        ];
+        
+        // Logique pour différents types d'ingrédients avec personnalité
+        if (ingredients.some(i => ['pâtes', 'riz', 'pommes de terre'].includes(i))) {
+            const feculents = ingredients.filter(i => ['pâtes', 'riz', 'pommes de terre'].includes(i));
+            instructions.push(`🍝 Commence par cuire tes ${feculents[0]} - laisse-les buller joyeusement !`);
+        }
+        
+        if (ingredients.includes('œufs')) {
+            instructions.push(`🥚 Casse tes œufs avec panache (et croise les doigts pour qu'il n'y ait pas de coquille ! 😅)`);
+        }
+        
+        if (ingredients.some(i => ['oignons', 'ail', 'échalotes'].includes(i))) {
+            const aromates = ingredients.filter(i => ['oignons', 'ail', 'échalotes'].includes(i));
+            instructions.push(`🧅 Fais revenir tes ${aromates.join(' et ')} jusqu'à ce qu'ils sentent le paradis !`);
+        }
+        
+        if (ingredients.includes('fromage')) {
+            instructions.push(`🧀 Râpe ton fromage avec amour (et attention à tes doigts ! 😉)`);
+        }
+
+        // Instructions de mélange créatives
+        const mixingPhrases = [
+            '🔄 Maintenant, mélange tout ça comme si tu dirigeais un orchestre !',
+            '💃 Fais danser tous tes ingrédients ensemble dans la poêle !',
+            '🎪 C\'est le moment du grand spectacle : mélange avec passion !',
+            '✨ Unifie tous ces copains dans un ballet culinaire !'
+        ];
+        
+        instructions.push(mixingPhrases[Math.floor(Math.random() * mixingPhrases.length)]);
+        
+        // Instructions de cuisson avec personnalité
+        const cookingPhrases = [
+            '🔥 Laisse cuire jusqu\'à ce que tout soit doré et heureux !',
+            '⏰ Patiente un peu... les bonnes choses prennent du temps !',
+            '👃 Tu le sauras quand c\'est prêt : ton nez ne te mentira pas !',
+            '🌟 Continue jusqu\'à ce que ça ressemble à un chef-d\'œuvre !'
+        ];
+        
+        instructions.push(cookingPhrases[Math.floor(Math.random() * cookingPhrases.length)]);
+        
+        // Assaisonnement avec fun
+        const seasoningPhrases = [
+            '🧂 Goûte et ajuste l\'assaisonnement - toi seul.e connais tes goûts !',
+            '🌶️ Un peu de sel, de poivre, et tout ce qui te fait plaisir !',
+            '✨ La touche finale : assaisonne selon ton cœur !',
+            '🎯 Sale, poivre, goûte... jusqu\'à ce que ce soit parfait pour TOI !'
+        ];
+        
+        instructions.push(seasoningPhrases[Math.floor(Math.random() * seasoningPhrases.length)]);
+        
+        // Conclusion enthousiaste
+        const conclusions = [
+            '🎉 TADA ! Sers avec fierté et un grand sourire !',
+            '👏 Bravo chef ! Régale-toi bien, tu l\'as mérité !',
+            '🌟 Et voilà ! Tu viens de créer quelque chose d\'unique !',
+            '❤️ Sers avec amour et partage ce moment de bonheur !',
+            '🏆 Félicitations ! Tu peux être fier.e de cette création !'
+        ];
+        
+        instructions.push(conclusions[Math.floor(Math.random() * conclusions.length)]);
+        
+        return instructions;
+    }
+
+    // Générer une suggestion de fallback
+    generateFallbackSuggestion(ingredients) {
+        const funSuggestions = [
+            '🍳 Tu sais quoi ? Une poêlée avec tout ça, ça va être DINGUE !',
+            '🥘 Et si on faisait un plat mijoté ? Ça sent déjà bon dans ma tête !',
+            '🥗 Ces ingrédients feraient une salade composée de FOLIE !',
+            '🍯 Parfait pour une omelette garnie qui va faire des jaloux !',
+            '🔥 Idéal pour un gratin au four qui va réchauffer les cœurs !',
+            '🎪 On va faire un plat mystère qui va surprendre tout le monde !',
+            '✨ Hmm... je sens qu\'on va créer quelque chose de magique !',
+            '🌈 Avec ça, on peut faire un arc-en-ciel de saveurs !'
+        ];
+
+        const funInstructions = [
+            '💧 Lave et prépare tous tes petits protégés avec tendresse',
+            '🤔 Choisis ton arme de cuisson préférée : poêle, four, casserole... tu es le boss !',
+            '⏰ Commence par ceux qui prennent le plus de temps (ils sont un peu timides)',
+            '🧂 Sale, poivre, goûte... c\'est TON moment de gloire !',
+            '👃 Fais confiance à ton nez et à tes papilles, ils ne mentent jamais !',
+            '❤️ Sers avec tout ton amour... c\'est l\'ingrédient secret !'
+        ];
+
+        const funTitles = [
+            `🎨 La Création Artistique aux ${ingredients.slice(0, 2).join(' & ')}`,
+            `🚀 Mission Impossible : Transformer ${ingredients.length} Ingrédients en Délice`,
+            `🎭 L'Impro du Chef avec ${ingredients.join(', ')}`,
+            `🌟 Le Plat Mystère de ${new Date().toLocaleDateString('fr-FR')}`
+        ];
+        
+        return {
+            name: funTitles[Math.floor(Math.random() * funTitles.length)],
+            description: funSuggestions[Math.floor(Math.random() * funSuggestions.length)] + ' Allez, on se lance dans l\'aventure ! 🎯',
+            instructions: funInstructions,
+            time: '15-30 minutes de pur plaisir',
+            difficulty: 'Aventurier du quotidien !',
+            custom: true,
+            matchPercentage: 100
+        };
+    }
+
+    // Afficher la suggestion de l'IA
+    displayAISuggestion(suggestion) {
+        const aiResults = document.getElementById('ai-results');
+        if (!aiResults || !suggestion) return;
+
+        const missingIngredientsHtml = suggestion.missingIngredients && suggestion.missingIngredients.length > 0 
+            ? `<div class="missing-ingredients">
+                <p><strong>🚫 Ingrédients manquants :</strong> ${suggestion.missingIngredients.join(', ')}</p>
+               </div>`
+            : '';
+
+        aiResults.innerHTML = `
+            <div class="ai-recipe-card">
+                <div class="ai-recipe-header">
+                    <h5 class="ai-recipe-title">${suggestion.name}</h5>
+                    <div class="ai-recipe-meta">
+                        <span class="ai-match">🎯 ${suggestion.matchPercentage}% de correspondance</span>
+                        <span class="ai-time">⏱️ ${suggestion.time}</span>
+                        <span class="ai-difficulty">📊 ${suggestion.difficulty}</span>
+                    </div>
+                </div>
+                
+                <div class="ai-recipe-description">
+                    <p>${suggestion.description}</p>
+                </div>
+                
+                ${missingIngredientsHtml}
+                
+                <div class="ai-recipe-instructions">
+                    <h6>👨‍🍳 Instructions :</h6>
+                    <ol>
+                        ${suggestion.instructions.map(instruction => `<li>${instruction}</li>`).join('')}
+                    </ol>
+                </div>
+                
+                <div class="ai-recipe-actions">
+                    <button class="btn btn-primary" onclick="frigoManager.saveAISuggestion(${JSON.stringify(suggestion).replace(/"/g, '&quot;')})">
+                        ❤️ Sauvegarder
+                    </button>
+                    <button class="btn btn-secondary" onclick="frigoManager.getAISuggestions()">
+                        🔄 Autre suggestion
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    // Sauvegarder la suggestion IA comme favori
+    saveAISuggestion(suggestion) {
+        const user = JSON.parse(localStorage.getItem('currentUser'));
+        if (!user) {
+            showNotification('Connectez-vous pour sauvegarder vos recettes !', 'warning');
+            return;
+        }
+
+        const recipe = {
+            id: `ai_${Date.now()}`,
+            name: suggestion.name,
+            description: suggestion.description,
+            ingredients: this.ingredients.slice(),
+            instructions: suggestion.instructions,
+            time: suggestion.time,
+            difficulty: suggestion.difficulty,
+            category: 'ia',
+            source: 'IA PatOketchup',
+            image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&auto=format'
+        };
+
+        // Ajouter directement aux favoris de l'utilisateur
+        if (!user.favorites) user.favorites = [];
+        user.favorites.push(recipe);
+        
+        // Mettre à jour dans localStorage
+        const users = JSON.parse(localStorage.getItem('patoketchup_users')) || [];
+        const userIndex = users.findIndex(u => u.email === user.email);
+        if (userIndex !== -1) {
+            users[userIndex] = user;
+            localStorage.setItem('patoketchup_users', JSON.stringify(users));
+        }
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        
+        showNotification('Recette IA sauvegardée dans vos favoris !', 'success');
+    }
+
+    // Rechercher des recettes via l'API classique
+    async searchRecipesByIngredients() {
+        if (this.ingredients.length === 0) {
+            showNotification('Veuillez d\'abord ajouter des ingrédients !', 'warning');
+            return;
+        }
+
+        // Utiliser la fonction existante avec le premier ingrédient
+        const mainIngredient = this.ingredients[0];
+        console.log('🔍 Recherche API pour:', mainIngredient);
+        
+        // Afficher la section de résultats
+        const resultsSection = document.getElementById('frigo-results');
+        if (resultsSection) {
+            resultsSection.style.display = 'block';
+            
+            // Appeler la fonction de recherche existante
+            const recipes = await this.searchRecipesByMainIngredient(mainIngredient);
+            this.displayAPIResults(recipes);
+        }
+    }
+
+    // Recherche par ingrédient principal (réutilise la logique existante)
+    async searchRecipesByMainIngredient(ingredient) {
+        try {
+            setLoadingState(true);
+            const data = await makeAPICall(`${API_CONFIG.endpoints.searchByIngredient}${ingredient}`);
+            
+            if (data && data.meals) {
+                const recipes = await Promise.all(data.meals.slice(0, 6).map(async meal => {
+                    const details = await makeAPICall(`${API_CONFIG.endpoints.getById}${meal.idMeal}`);
+                    if (details && details.meals) {
+                        const detailedMeal = details.meals[0];
+                        return {
+                            id: detailedMeal.idMeal,
+                            name: detailedMeal.strMeal,
+                            category: detailedMeal.strCategory,
+                            area: detailedMeal.strArea,
+                            image: detailedMeal.strMealThumb,
+                            description: detailedMeal.strInstructions ? 
+                                detailedMeal.strInstructions.substring(0, 150) + '...' : 
+                                'Délicieuse recette trouvée'
+                        };
+                    }
+                    return null;
+                }));
+                
+                return recipes.filter(recipe => recipe !== null);
+            }
+            
+            return [];
+        } catch (error) {
+            console.error('Erreur recherche ingrédients:', error);
+            return [];
+        } finally {
+            setLoadingState(false);
+        }
+    }
+
+    // Afficher les résultats de l'API
+    displayAPIResults(recipes) {
+        const grid = document.getElementById('frigo-recipes-grid');
+        if (!grid) return;
+
+        if (recipes.length === 0) {
+            grid.innerHTML = `
+                <div class="no-recipes-found">
+                    <p>🔍 Aucune recette trouvée avec l'API pour ces ingrédients</p>
+                    <p>Essayez les suggestions IA à la place !</p>
+                </div>
+            `;
+            return;
+        }
+
+        grid.innerHTML = recipes.map(recipe => `
+            <article class="recipe-card frigo-recipe-card" onclick="openRecipeModal('${recipe.id}')">
+                <div class="recipe-image">
+                    <img src="${recipe.image}" alt="${recipe.name}" loading="lazy">
+                    <div class="recipe-overlay">
+                        <span class="recipe-category">${recipe.category}</span>
+                        <span class="recipe-area">🌍 ${recipe.area}</span>
+                    </div>
+                </div>
+                <div class="recipe-content">
+                    <h4 class="recipe-title">${recipe.name}</h4>
+                    <p class="recipe-description">${recipe.description}</p>
+                </div>
+            </article>
+        `).join('');
+    }
+
+    // Masquer les résultats
+    hideResults() {
+        const aiSection = document.getElementById('ai-suggestions-section');
+        const resultsSection = document.getElementById('frigo-results');
+        
+        if (aiSection) aiSection.style.display = 'none';
+        if (resultsSection) resultsSection.style.display = 'none';
+    }
+
+    // Fonction de démonstration
+    demonstrateAI() {
+        // Vider les ingrédients actuels
+        this.ingredients = [];
+        
+        // Ajouter les ingrédients de démonstration
+        this.ingredients.push('œufs', 'pâtes', 'fromage');
+        this.updateIngredientsDisplay();
+        
+        // Lancer automatiquement les suggestions IA
+        setTimeout(() => {
+            this.getAISuggestions();
+        }, 500);
+        
+        const demoMessages = [
+            '🎭 Spectacle en cours ! Œufs, pâtes et fromage sur scène !',
+            '🚀 Démonstration activée ! Prépare-toi à être impressionné.e !',
+            '✨ Magie en action avec le trio parfait ! Regarde bien !',
+            '🎪 Show-time ! L\'IA va te montrer ses talents !'
+        ];
+        
+        showNotification(demoMessages[Math.floor(Math.random() * demoMessages.length)], 'info');
+    }
+
+    // Fonction de test pour l'exemple pâtes + ketchup + beurre
+    demonstrateCustomIA() {
+        // Vider les ingrédients actuels
+        this.ingredients = [];
+        
+        // Ajouter l'exemple spécifique
+        this.ingredients.push('pâtes', 'ketchup', 'beurre');
+        this.updateIngredientsDisplay();
+        
+        // Lancer automatiquement les suggestions IA
+        setTimeout(() => {
+            this.getAISuggestions();
+        }, 500);
+        
+        showNotification('🧪 Test en cours : Pâtes + Ketchup + Beurre ! L\'IA va analyser chaque ingrédient !', 'info');
+    }
+}
+
+// Initialiser le gestionnaire du frigo
+let frigoManager;
+
+// ========================================
+// FONCTION DE TEST DE L'API
+// ========================================
+
+// Fonction de test pour vérifier que l'API fonctionne
+async function testAPI() {
+    console.log('🧪 Test de l\'API TheMealDB...');
+    
+    try {
+        // Test 1: Recette aléatoire
+        const randomData = await makeAPICall(API_CONFIG.endpoints.random);
+        console.log('✅ Test recette aléatoire:', randomData?.meals?.[0]?.strMeal || 'Échec');
+        
+        // Test 2: Recherche par nom
+        const searchData = await makeAPICall(`${API_CONFIG.endpoints.searchByName}chicken`);
+        console.log('✅ Test recherche:', searchData?.meals?.length || 0, 'résultats pour "chicken"');
+        
+        // Test 3: Détails d'une recette spécifique
+        if (searchData?.meals?.[0]?.idMeal) {
+            const detailsData = await makeAPICall(`${API_CONFIG.endpoints.getById}${searchData.meals[0].idMeal}`);
+            console.log('✅ Test détails recette:', detailsData?.meals?.[0]?.strMeal || 'Échec');
+        }
+        
+        console.log('🎉 Tous les tests API sont passés !');
+        return true;
+    } catch (error) {
+        console.error('❌ Erreur lors des tests API:', error);
+        return false;
+    }
+}
+
+// Lancer le test automatiquement quand le DOM est prêt
+document.addEventListener('DOMContentLoaded', async () => {
+    // Initialiser le gestionnaire du frigo
+    frigoManager = new FrigoManager();
+    
+    setTimeout(async () => {
+        await testAPI();
+    }, 1000);
+});

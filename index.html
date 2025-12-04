@@ -59,6 +59,30 @@
                 </ul>
             </nav>
             
+            <!-- Zone d'authentification -->
+            <div class="auth-section">
+                <div class="auth-buttons" id="auth-buttons">
+                    <button class="btn btn-outline" id="login-btn">Se connecter</button>
+                    <button class="btn btn-primary" id="register-btn">S'inscrire</button>
+                </div>
+                
+                <div class="user-profile" id="user-profile" style="display: none;">
+                    <div class="user-info">
+                        <img src="https://images.unsplash.com/photo-1494790108755-2616b2e2b6b0?w=60&h=60&fit=crop&crop=face&auto=format" 
+                             alt="Avatar" class="user-avatar" id="user-avatar">
+                        <div class="user-details">
+                            <span class="user-name" id="user-name">Nom d'utilisateur</span>
+                            <span class="user-status">👨‍🍳 Chef cuisinier</span>
+                        </div>
+                    </div>
+                    <div class="user-actions">
+                        <button class="action-btn" id="profile-btn" title="Profil">👤</button>
+                        <button class="action-btn" id="settings-btn" title="Paramètres">⚙️</button>
+                        <button class="action-btn logout" id="logout-btn" title="Déconnexion">🚪</button>
+                    </div>
+                </div>
+            </div>
+            
             <div class="sidebar-footer">
                 <p class="slogan">L'app qui transforme ce que tu as en ce que tu veux !</p>
             </div>
@@ -126,11 +150,23 @@
                 <!-- Section Mon Frigo (masquée par défaut) -->
                 <section class="frigo-section" id="frigo-section" style="display: none;">
                     <div class="frigo-header">
-                        <h3 class="frigo-title">🧊 Que reste-t-il dans ton frigo ?</h3>
-                        <p class="frigo-subtitle">Ajoute tes ingrédients et découvre les recettes possibles avec l'API</p>
+                        <h3 class="frigo-title">🧊 Mon Frigo Intelligent</h3>
+                        <p class="frigo-subtitle">Sélectionnez vos ingrédients disponibles et laissez l'IA vous proposer des recettes sur mesure !</p>
+                        
+                        <!-- Bouton de démonstration -->
+                        <div style="text-align: center; margin: 1rem 0;">
+                            <button class="btn btn-primary" onclick="frigoManager.demonstrateAI()" 
+                                    style="background: linear-gradient(135deg, #667eea, #764ba2); border: none; padding: 0.8rem 1.5rem; border-radius: 12px; color: white; cursor: pointer; margin: 0.5rem;">
+                                🚀 Démo IA : Œufs + Pâtes + Fromage
+                            </button>
+                            <button class="btn btn-secondary" onclick="frigoManager.demonstrateCustomIA()" 
+                                    style="background: linear-gradient(135deg, #ff8a80, #ff5722); border: none; padding: 0.8rem 1.5rem; border-radius: 12px; color: white; cursor: pointer; margin: 0.5rem;">
+                                🍝 Test : Pâtes + Ketchup + Beurre
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Zone d'ajout d'ingrédients -->
+                    <!-- Zone d'ajout d'ingrédients avec IA -->
                     <div class="ingredients-input-section">
                         <div class="add-ingredient-bar">
                             <span class="ingredient-icon">🥗</span>
@@ -138,7 +174,7 @@
                                 type="text" 
                                 id="frigo-ingredient-input" 
                                 class="ingredient-input"
-                                placeholder="Ajouter un ingrédient (ex: tomates, pâtes, fromage...)"
+                                placeholder="Ajouter un ingrédient (ex: œufs, pâtes, fromage...)"
                             >
                             <button type="button" class="add-ingredient-btn" id="add-ingredient-btn">
                                 ➕ Ajouter
@@ -147,27 +183,36 @@
                         
                         <!-- Suggestions d'ingrédients populaires -->
                         <div class="ingredient-suggestions">
-                            <span class="suggestions-label">Suggestions :</span>
-                            <button type="button" class="suggestion-chip" data-ingredient="tomates">🍅 Tomates</button>
+                            <span class="suggestions-label">Ingrédients populaires :</span>
+                            <button type="button" class="suggestion-chip" data-ingredient="œufs">🥚 Œufs</button>
                             <button type="button" class="suggestion-chip" data-ingredient="pâtes">🍝 Pâtes</button>
-                            <button type="button" class="suggestion-chip" data-ingredient="oeufs">🥚 Œufs</button>
-                            <button type="button" class="suggestion-chip" data-ingredient="fromage">🧀 Fromage</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="fromage">� Fromage</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="tomates">🍅 Tomates</button>
                             <button type="button" class="suggestion-chip" data-ingredient="oignons">🧅 Oignons</button>
                             <button type="button" class="suggestion-chip" data-ingredient="ail">🧄 Ail</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="beurre">🧈 Beurre</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="lait">🥛 Lait</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="farine">🌾 Farine</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="poulet">🐔 Poulet</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="pommes de terre">🥔 Pommes de terre</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="riz">🍚 Riz</button>
                         </div>
                     </div>
 
                     <!-- Liste des ingrédients sélectionnés -->
                     <div class="selected-ingredients" id="selected-ingredients-container">
-                        <h4 class="ingredients-list-title">🎒 Tes ingrédients :</h4>
+                        <h4 class="ingredients-list-title">🎒 Vos ingrédients disponibles :</h4>
                         <div class="ingredients-list" id="ingredients-list">
                             <div class="empty-ingredients">
-                                <p>👆 Commence par ajouter des ingrédients de ton frigo</p>
+                                <p>👆 Sélectionnez vos ingrédients pour commencer</p>
                             </div>
                         </div>
                         <div class="ingredients-actions" style="display: none;">
+                            <button type="button" class="btn-ai-suggestions" id="ai-suggestions-btn">
+                                🤖 Suggestions IA
+                            </button>
                             <button type="button" class="btn-search-recipes" id="search-by-ingredients-btn">
-                                🔍 Chercher des recettes
+                                🔍 Chercher recettes API
                             </button>
                             <button type="button" class="btn-clear-ingredients" id="clear-ingredients-btn">
                                 🗑️ Vider
@@ -175,9 +220,23 @@
                         </div>
                     </div>
 
-                    <!-- Résultats de recherche par ingrédients -->
+                    <!-- Section de suggestions IA -->
+                    <div class="ai-suggestions-section" id="ai-suggestions-section" style="display: none;">
+                        <div class="ai-header">
+                            <h4 class="ai-title">🤖 Suggestions de l'Intelligence Artificielle</h4>
+                            <div class="ai-loading" id="ai-loading" style="display: none;">
+                                <div class="ai-spinner"></div>
+                                <p>L'IA analyse vos ingrédients...</p>
+                            </div>
+                        </div>
+                        <div class="ai-results" id="ai-results">
+                            <!-- Les suggestions IA apparaîtront ici -->
+                        </div>
+                    </div>
+
+                    <!-- Résultats de recherche par ingrédients (API classique) -->
                     <div class="frigo-results" id="frigo-results" style="display: none;">
-                        <h4 class="frigo-results-title">🍽️ Recettes possibles avec tes ingrédients :</h4>
+                        <h4 class="frigo-results-title">🍽️ Recettes trouvées avec l'API :</h4>
                         <div class="frigo-recipes-grid" id="frigo-recipes-grid">
                             <!-- Les recettes de l'API apparaîtront ici -->
                         </div>
@@ -222,6 +281,135 @@
             <p>🍅 patOketchup © 2025 - Anti-gaspi et cuisine créative</p>
         </div>
     </footer>
+    
+    <!-- Modales d'Authentification -->
+    <!-- Modal de Connexion -->
+    <div class="modal-overlay" id="login-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔐 Connexion</h2>
+                <button class="modal-close" id="login-close">&times;</button>
+            </div>
+            <form class="auth-form" id="login-form">
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" name="email" required 
+                           placeholder="votre@email.com">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Mot de passe</label>
+                    <input type="password" id="login-password" name="password" required 
+                           placeholder="Votre mot de passe">
+                </div>
+                <div class="form-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="remember-me">
+                        <span class="checkmark"></span>
+                        Se souvenir de moi
+                    </label>
+                    <a href="#" class="forgot-password">Mot de passe oublié ?</a>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Se connecter</button>
+                <p class="form-footer">
+                    Pas encore de compte ? 
+                    <a href="#" id="switch-to-register">S'inscrire</a>
+                </p>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal d'Inscription -->
+    <div class="modal-overlay" id="register-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🌟 Inscription</h2>
+                <button class="modal-close" id="register-close">&times;</button>
+            </div>
+            <form class="auth-form" id="register-form">
+                <div class="form-group">
+                    <label for="register-name">Nom complet</label>
+                    <input type="text" id="register-name" name="name" required 
+                           placeholder="Votre nom complet">
+                </div>
+                <div class="form-group">
+                    <label for="register-email">Email</label>
+                    <input type="email" id="register-email" name="email" required 
+                           placeholder="votre@email.com">
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Mot de passe</label>
+                    <input type="password" id="register-password" name="password" required 
+                           placeholder="Au moins 6 caractères">
+                </div>
+                <div class="form-group">
+                    <label for="register-confirm">Confirmer le mot de passe</label>
+                    <input type="password" id="register-confirm" name="confirm" required 
+                           placeholder="Répétez votre mot de passe">
+                </div>
+                <div class="form-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="accept-terms" required>
+                        <span class="checkmark"></span>
+                        J'accepte les <a href="#">conditions d'utilisation</a>
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Créer mon compte</button>
+                <p class="form-footer">
+                    Déjà un compte ? 
+                    <a href="#" id="switch-to-login">Se connecter</a>
+                </p>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal de Profil -->
+    <div class="modal-overlay" id="profile-modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>👤 Mon Profil</h2>
+                <button class="modal-close" id="profile-close">&times;</button>
+            </div>
+            <div class="profile-content">
+                <div class="profile-avatar-section">
+                    <img src="https://images.unsplash.com/photo-1494790108755-2616b2e2b6b0?w=120&h=120&fit=crop&crop=face&auto=format" 
+                         alt="Avatar" class="profile-avatar" id="profile-avatar">
+                    <button class="btn btn-outline btn-small" id="change-avatar">Changer la photo</button>
+                </div>
+                <div class="profile-form">
+                    <form id="profile-update-form">
+                        <div class="form-group">
+                            <label for="profile-name">Nom complet</label>
+                            <input type="text" id="profile-name" name="name">
+                        </div>
+                        <div class="form-group">
+                            <label for="profile-email">Email</label>
+                            <input type="email" id="profile-email" name="email">
+                        </div>
+                        <div class="form-group">
+                            <label for="profile-bio">Bio</label>
+                            <textarea id="profile-bio" name="bio" rows="3" 
+                                      placeholder="Parlez-nous de vos préférences culinaires..."></textarea>
+                        </div>
+                        <div class="profile-stats">
+                            <div class="stat-item">
+                                <span class="stat-number" id="recipes-saved">0</span>
+                                <span class="stat-label">Recettes sauvées</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number" id="recipes-cooked">0</span>
+                                <span class="stat-label">Recettes cuisinées</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number" id="gaspi-saved">0kg</span>
+                                <span class="stat-label">Gaspillage évité</span>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Sauvegarder</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Script JavaScript (sera créé à l'étape 3) -->
     <script src="script.js"></script>

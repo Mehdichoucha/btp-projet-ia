@@ -7,6 +7,649 @@
     box-sizing: border-box;
 }
 
+/* ========================================
+   SYSTÈME D'AUTHENTIFICATION 
+======================================== */
+
+/* Zone d'authentification dans la sidebar */
+.auth-section {
+    margin-top: auto;
+    padding: 1.5rem 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.auth-buttons .btn {
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    border: none;
+}
+
+.btn-outline {
+    background: transparent;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-outline:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #ff6b6b, #ff8e53);
+    color: white;
+    border: none;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #ff5252, #ff7043);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+}
+
+/* Profil utilisateur connecté */
+.user-profile {
+    animation: slideInUp 0.4s ease;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+    padding: 0.8rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+.user-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid #ff6b6b;
+    object-fit: cover;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.user-name {
+    font-weight: 600;
+    color: white;
+    font-size: 0.9rem;
+}
+
+.user-status {
+    font-size: 0.75rem;
+    color: #ff8e53;
+    opacity: 0.8;
+}
+
+.user-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.action-btn {
+    padding: 0.6rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+    flex: 1;
+}
+
+.action-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.action-btn.logout:hover {
+    background: rgba(255, 107, 107, 0.3);
+    color: #ff6b6b;
+}
+
+/* ========================================
+   MODALES D'AUTHENTIFICATION
+======================================== */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-content {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 450px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    animation: slideInUp 0.4s ease;
+}
+
+.modal-large {
+    max-width: 600px;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header h2 {
+    color: white;
+    font-size: 1.5rem;
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    color: #8b9dc3;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.modal-close:hover {
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff6b6b;
+}
+
+/* Formulaires d'authentification */
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group label {
+    color: #e2e8f0;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group textarea {
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #ff6b6b;
+    box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color: #8b9dc3;
+}
+
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin: 0.5rem 0;
+}
+
+/* Checkbox personnalisé */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #e2e8f0;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    display: none;
+}
+
+.checkmark {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkmark {
+    background: #ff6b6b;
+    border-color: #ff6b6b;
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkmark::after {
+    content: "✓";
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.forgot-password {
+    color: #ff8e53;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.3s ease;
+}
+
+.forgot-password:hover {
+    color: #ff6b6b;
+}
+
+.btn-full {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1rem;
+    margin-top: 1rem;
+}
+
+.form-footer {
+    text-align: center;
+    margin-top: 1rem;
+    color: #8b9dc3;
+    font-size: 0.9rem;
+}
+
+.form-footer a {
+    color: #ff8e53;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.form-footer a:hover {
+    color: #ff6b6b;
+}
+
+/* ========================================
+   PROFIL UTILISATEUR
+======================================== */
+
+.profile-content {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+.profile-avatar-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.profile-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 3px solid #ff6b6b;
+    object-fit: cover;
+}
+
+.btn-small {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+}
+
+.profile-form {
+    flex: 1;
+}
+
+.profile-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-number {
+    display: block;
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #ff6b6b;
+    margin-bottom: 0.3rem;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: #8b9dc3;
+}
+
+/* ========================================
+   ANIMATIONS D'AUTHENTIFICATION
+======================================== */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive Design pour l'authentification */
+@media (max-width: 768px) {
+    .modal-content {
+        margin: 1rem;
+        padding: 1.5rem;
+        width: calc(100% - 2rem);
+    }
+    
+    .profile-content {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+    
+    .profile-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-options {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.8rem;
+    }
+}
+
+/* ========================================
+   SECTION FAVORIS ET INVITES
+======================================== */
+
+/* Section des favoris */
+.favorites-section {
+    padding: 2rem 0;
+}
+
+.favorites-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.favorite-recipe-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.favorite-recipe-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    border-color: #ff6b6b;
+}
+
+.recipe-placeholder {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    text-align: center;
+}
+
+.placeholder-image {
+    font-size: 3rem;
+    opacity: 0.7;
+}
+
+.recipe-info h4 {
+    color: white;
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.recipe-info p {
+    color: #8b9dc3;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.recipe-actions-mini {
+    display: flex;
+    gap: 0.8rem;
+    margin-top: 1rem;
+}
+
+.recipe-actions-mini button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+}
+
+.remove-favorite {
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff6b6b;
+}
+
+.remove-favorite:hover {
+    background: #ff6b6b;
+    color: white;
+}
+
+.view-recipe {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.view-recipe:hover {
+    background: #ff8e53;
+    color: white;
+}
+
+/* Statistiques des favoris */
+.favorites-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-top: 3rem;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+}
+
+.stat-card {
+    text-align: center;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+}
+
+/* Messages d'invitation à l'authentification */
+.auth-prompt,
+.empty-favorites {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 4rem 2rem;
+    max-width: 500px;
+    margin: 2rem auto;
+}
+
+.prompt-icon,
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+    opacity: 0.8;
+}
+
+.auth-prompt h3,
+.empty-favorites h3 {
+    color: white;
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+}
+
+.auth-prompt p,
+.empty-favorites p {
+    color: #8b9dc3;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+.prompt-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* Animations pour les notifications de style */
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(300px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.notification {
+    animation: slideInRight 0.3s ease !important;
+}
+
+.notification-close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.3s ease;
+}
+
+.notification-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Responsive pour la section favoris */
+@media (max-width: 768px) {
+    .favorites-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .favorites-stats {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+    
+    .prompt-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .prompt-actions .btn {
+        width: 100%;
+    }
+}
+
+/* ========================================
+   ANCIEN CODE CSS (CONSERVÉ)
+======================================== */
+
 /* Amélioration globale de la qualité des images */
 img {
     image-rendering: high-quality;
@@ -1680,13 +2323,24 @@ body {
     font-weight: 700;
     color: #ffffff;
     margin-bottom: 12px;
-    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1rem 1.5rem;
+    border-radius: 15px;
+    text-align: center;
+    border: 2px solid rgba(255, 134, 83, 0.5);
 }
 
 .frigo-subtitle {
     font-size: 1.2rem;
-    color: rgba(255, 255, 255, 0.9);
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    color: #ffffff;
+    font-weight: 500;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.8rem 1.2rem;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 1.5rem;
 }
 
 /* Zone d'ajout d'ingrédients */
@@ -1784,33 +2438,50 @@ body {
 
 /* Liste des ingrédients sélectionnés */
 .selected-ingredients {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.3);
     border-radius: 20px;
     padding: 25px;
     margin-bottom: 30px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 2px solid rgba(255, 134, 83, 0.3);
+    backdrop-filter: blur(10px);
 }
 
 .ingredients-list-title {
     font-size: 1.3rem;
-    font-weight: 600;
+    font-weight: 700;
     color: #ffffff;
     margin-bottom: 16px;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.4);
+    padding: 0.8rem 1.2rem;
+    border-radius: 12px;
+    border-left: 4px solid #ff8653;
 }
 
 .ingredients-list {
     display: flex;
-    gap: 12px;
+    gap: 15px;
     flex-wrap: wrap;
     margin-bottom: 20px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 1.5rem;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    min-height: 60px;
+    align-items: flex-start;
+    align-content: flex-start;
 }
 
 .empty-ingredients {
     text-align: center;
     padding: 30px;
-    color: rgba(255, 255, 255, 0.7);
+    color: #ffffff;
     font-style: italic;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-weight: 500;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
 
 .ingredient-item {
@@ -1961,6 +2632,371 @@ body {
     border-radius: 12px;
     font-size: 0.8rem;
     font-weight: 600;
+}
+
+/* ========================================
+   STYLES IA POUR MON FRIGO
+======================================== */
+
+/* Tags d'ingrédients */
+.ingredient-tag {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.7);
+    color: #ffffff;
+    padding: 0.8rem 1rem;
+    border-radius: 25px;
+    margin: 0.4rem;
+    border: 2px solid rgba(255, 134, 83, 0.8);
+    transition: all 0.3s ease;
+    font-weight: 600;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.ingredient-tag:hover {
+    background: rgba(255, 134, 83, 0.9);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(255, 134, 83, 0.4);
+    border-color: #ff8653;
+}
+
+.ingredient-name {
+    margin-right: 0.8rem;
+    font-weight: 600;
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.remove-ingredient {
+    background: rgba(255, 107, 107, 0.8);
+    border: none;
+    color: #ffffff;
+    cursor: pointer;
+    padding: 0.3rem;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-weight: bold;
+}
+
+.remove-ingredient:hover {
+    background: #ff6b6b;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(255, 107, 107, 0.4);
+}
+
+/* Actions d'ingrédients */
+.ingredients-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.btn-ai-suggestions {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn-ai-suggestions:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-search-recipes {
+    background: linear-gradient(135deg, #ff8a80 0%, #ff5722 100%);
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-clear-ingredients {
+    background: rgba(255, 255, 255, 0.1);
+    color: #8b9dc3;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 0.8rem 1.5rem;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+/* Section de suggestions IA */
+.ai-suggestions-section {
+    margin-top: 3rem;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ai-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.ai-title {
+    color: #ffffff;
+    font-size: 1.5rem;
+    margin: 0;
+    font-weight: 700;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.4), rgba(118, 75, 162, 0.4));
+    padding: 1rem 1.5rem;
+    border-radius: 15px;
+    text-align: center;
+    border: 2px solid rgba(102, 126, 234, 0.5);
+}
+
+/* Loading IA */
+.ai-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 2rem;
+    color: #8b9dc3;
+}
+
+.ai-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(102, 126, 234, 0.3);
+    border-top: 3px solid #667eea;
+    border-radius: 50%;
+    animation: aiSpin 1s linear infinite;
+}
+
+@keyframes aiSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Carte de recette IA */
+.ai-recipe-card {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+    border: 1px solid rgba(102, 126, 234, 0.2);
+    border-radius: 20px;
+    padding: 2rem;
+    margin: 1.5rem 0;
+    transition: all 0.3s ease;
+}
+
+.ai-recipe-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+    border-color: rgba(102, 126, 234, 0.4);
+}
+
+.ai-recipe-header {
+    margin-bottom: 1.5rem;
+}
+
+.ai-recipe-title {
+    color: #ffffff;
+    font-size: 1.4rem;
+    margin: 0 0 1rem 0;
+    font-weight: 700;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3));
+    padding: 0.8rem 1.2rem;
+    border-radius: 12px;
+    border-left: 4px solid #667eea;
+}
+
+.ai-recipe-meta {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.ai-match,
+.ai-time,
+.ai-difficulty {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.4rem 0.8rem;
+    border-radius: 15px;
+    font-size: 0.9rem;
+    color: #8b9dc3;
+}
+
+.ai-match {
+    background: rgba(39, 174, 96, 0.2);
+    color: #27ae60;
+    font-weight: 600;
+}
+
+.ai-recipe-description {
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
+    border-left: 4px solid #667eea;
+    border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+.ai-recipe-description p {
+    color: #ffffff;
+    margin: 0;
+    line-height: 1.6;
+    font-style: italic;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+    font-weight: 500;
+}
+
+/* Ingrédients manquants */
+.missing-ingredients {
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.missing-ingredients p {
+    color: #ff6b6b;
+    margin: 0;
+    font-weight: 500;
+}
+
+/* Instructions IA */
+.ai-recipe-instructions {
+    margin: 1.5rem 0;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ai-recipe-instructions h6 {
+    color: #ffffff;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.ai-recipe-instructions ol {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.ai-recipe-instructions li {
+    color: #ffffff;
+    line-height: 1.6;
+    margin-bottom: 0.8rem;
+    padding-left: 0.5rem;
+    font-weight: 500;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.ai-recipe-instructions li:hover {
+    color: #ff8653;
+    transition: color 0.3s ease;
+    transform: translateX(5px);
+}
+
+/* Actions de recette IA */
+.ai-recipe-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.ai-recipe-actions .btn {
+    padding: 0.8rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.ai-recipe-actions .btn-primary {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    border: none;
+    color: white;
+}
+
+.ai-recipe-actions .btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #8b9dc3;
+}
+
+.ai-recipe-actions .btn:hover {
+    transform: translateY(-2px);
+}
+
+/* Messages d'état */
+.no-recipes-found {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #8b9dc3;
+}
+
+.no-recipes-found p {
+    margin: 0.5rem 0;
+    font-size: 1.1rem;
+}
+
+/* Cartes de recette du frigo */
+.frigo-recipe-card {
+    background: rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.frigo-recipe-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-3px);
+    border-color: #ff8653;
+}
+
+/* Responsive pour IA */
+@media (max-width: 768px) {
+    .ai-suggestions-section {
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+    
+    .ai-recipe-meta {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .ai-recipe-actions {
+        flex-direction: column;
+    }
+    
+    .ai-recipe-actions .btn {
+        width: 100%;
+    }
+    
+    .ingredients-actions {
+        flex-direction: column;
+    }
+    
+    .ingredients-actions button {
+        width: 100%;
+    }
 }
 
 /* Placeholder pour sections non implémentées */
