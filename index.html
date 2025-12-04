@@ -9,11 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="text_black.css">
 </head>
 <body>
     <!-- Layout Dashboard : Sidebar + Main Content -->
     <div class="dashboard-layout">
-        
         <!-- Sidebar gauche (navigation) -->
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -26,6 +26,30 @@
             
             <nav class="sidebar-nav">
                 <ul class="nav-menu">
+                    <li class="nav-item auth-item" id="auth-nav-item">
+                        <a href="#" class="nav-link" id="auth-link" data-section="auth" aria-haspopup="true" aria-expanded="false">
+                            🔐 Connexion
+                        </a>
+                        <div class="auth-dropdown" id="auth-dropdown" style="display:none;">
+                            <div class="auth-tabs">
+                                <button type="button" class="auth-tab active" id="tab-login">Connexion</button>
+                                <button type="button" class="auth-tab" id="tab-signup">Créer un compte</button>
+                            </div>
+                            <form id="login-form" class="auth-form">
+                                <input type="email" id="login-email" placeholder="Email" required>
+                                <input type="password" id="login-password" placeholder="Mot de passe" required>
+                                <button type="button" id="login-submit">Se connecter</button>
+                            </form>
+                            <form id="signup-form" class="auth-form" style="display:none;">
+                                <input type="text" id="signup-firstname" placeholder="Prénom" required>
+                                <input type="text" id="signup-lastname" placeholder="Nom" required>
+                                <input type="email" id="signup-email" placeholder="Email" required>
+                                <input type="password" id="signup-password" placeholder="Mot de passe" required>
+                                <button type="button" id="signup-submit">Créer un compte</button>
+                            </form>
+                            <button type="button" id="signout-btn" style="display:none;">Déconnexion</button>
+                        </div>
+                    </li>
                     <li class="nav-item active">
                         <a href="#" class="nav-link" data-section="home">
                             🏠 Accueil
@@ -42,11 +66,6 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="#" class="nav-link" data-section="shopping">
-                            📝 Ma Liste de Courses
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a href="#" class="nav-link" data-section="quick">
                             ⚡ Recettes Rapides
                         </a>
@@ -56,59 +75,52 @@
                             🌱 Anti-Gaspi
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-section="auth">
-                            🔒 Connexion
-                        </a>
-                    </li>
                 </ul>
             </nav>
             
-            <div class="sidebar-footer">
-                <p class="slogan">L'app qui transforme ce que tu as en ce que tu veux !</p>
-            </div>
+
         </aside>
 
         <!-- Zone de contenu principale -->
         <main class="main-content">
             <div class="content-container">
-                <!-- En-tête du contenu -->
-                <header class="content-header">
-                    <h2 class="page-title">Que veux-tu cuisiner aujourd'hui ?</h2>
-                    <p class="page-subtitle">Transforme tes ingrédients en délicieuses recettes</p>
-                </header>
-
-                <!-- Zone de recherche moderne -->
-                <section class="search-section">
-                    <div class="search-container">
-                        <div class="search-bar">
-                            <span class="search-icon">🔍</span>
-                            <input 
-                                type="text" 
-                                id="ingredients-input" 
-                                class="search-input"
-                                placeholder="Rechercher une recette, un ingrédient..."
-                                aria-label="Rechercher des recettes"
-                            >
-                            <button type="button" class="filter-btn" aria-label="Filtres">
-                                ⚙️
-                            </button>
-                        </div>
-                        
-                        <!-- Categories rapides (chips) -->
-                        <div class="categories-chips">
-                            <button type="button" class="chip active" data-category="all">Tout</button>
-                            <button type="button" class="chip" data-category="breakfast">🌅 Petit-déj</button>
-                            <button type="button" class="chip" data-category="vegetarian">🌱 Végétarien</button>
-                            <button type="button" class="chip" data-category="quick">⚡ Rapide (-20min)</button>
-                            <button type="button" class="chip" data-category="easy">👶 Facile</button>
-                            <button type="button" class="chip" data-category="surprise">🎲 Surprise</button>
-                        </div>
-                    </div>
-                </section>
-
+ 
                 <!-- Zone de résultats (Accueil) -->
                 <section class="results-section" id="home-section">
+                    <!-- En-tête du contenu -->
+                    <header class="content-header">
+                        <h2 class="page-title">Que veux-tu cuisiner aujourd'hui ?</h2>
+                        <p class="page-subtitle">Transforme tes ingrédients en délicieuses recettes</p>
+                    </header>
+    
+                    <!-- Zone de recherche moderne -->
+                    <section class="search-section">
+                        <div class="search-container">
+                            <div class="search-bar">
+                                <span class="search-icon">🔍</span>
+                                <input 
+                                    type="text" 
+                                    id="ingredients-input" 
+                                    class="search-input"
+                                    placeholder="Rechercher une recette, un ingrédient..."
+                                    aria-label="Rechercher des recettes"
+                                >
+                                <button type="button" class="filter-btn" aria-label="Filtres">
+                                    ⚙️
+                                </button>
+                            </div>
+                            
+                            <!-- Categories rapides (chips) -->
+                            <div class="categories-chips">
+                                <button type="button" class="chip active" data-category="all">Tout</button>
+                                <button type="button" class="chip" data-category="breakfast">🌅 Petit-déj</button>
+                                <button type="button" class="chip" data-category="vegetarian">🌱 Végétarien</button>
+                                <button type="button" class="chip" data-category="quick">⚡ Rapide (-20min)</button>
+                                <button type="button" class="chip" data-category="easy">👶 Facile</button>
+                                <button type="button" class="chip" data-category="surprise">🎲 Surprise</button>
+                            </div>
+                        </div>
+                    </section>
                     <div class="results-header" style="display: none;">
                         <h3 class="results-title">Recettes trouvées</h3>
                         <span class="results-count" id="results-count">0 recette(s)</span>
@@ -119,13 +131,6 @@
                         <!-- Les cartes de recettes apparaîtront ici via JavaScript -->
                     </div>
                     
-                    <!-- Message d'état -->
-                    <div class="message-container" id="message-container">
-                        <div class="welcome-message">
-                            <h3>👨‍🍳 Deviens un chef improvisé !</h3>
-                            <p>Entre tes ingrédients dans la barre de recherche et découvre des recettes délicieuses sans gaspillage.</p>
-                        </div>
-                    </div>
                 </section>
 
                 <!-- Section Mon Frigo (masquée par défaut) -->

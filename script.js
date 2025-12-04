@@ -442,6 +442,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Initialiser les composants
     initializeEventListeners();
+    // Initialiser l'UI d'authentification (dropdown)
+    if (typeof initializeAuthUI === 'function') initializeAuthUI();
     
     // Charger nos recettes de présentation par défaut
     await loadInitialRecipes();
@@ -1309,6 +1311,25 @@ function initializeEventListeners() {
     
     // Initialiser la section d'accueil par défaut
     switchSection('home');
+    // Mobile menu toggle handler
+    const mobileBtn = document.getElementById('mobile-menu-btn');
+    if (mobileBtn) {
+        mobileBtn.addEventListener('click', () => {
+            document.querySelector('.sidebar').classList.toggle('open');
+        });
+    }
+    // Close sidebar when clicking outside on mobile
+    document.addEventListener('click', (e) => {
+        const sidebar = document.querySelector('.sidebar');
+        const btn = document.getElementById('mobile-menu-btn');
+        if (!sidebar || !btn) return;
+        if (sidebar.classList.contains('open')) {
+            const isClickInside = sidebar.contains(e.target) || btn.contains(e.target);
+            if (!isClickInside) {
+                sidebar.classList.remove('open');
+            }
+        }
+    });
 }
 
 // ========================================
@@ -1883,6 +1904,94 @@ async function saveFridgeForUser() {
     } catch (err) {
         console.error('saveFridge error:', err);
         showNotification('Erreur sauvegarde frigo', 'error');
+    }
+}
+
+// Initialize minimal auth UI and handlers (login/signup dropdown)
+function initializeAuthUI() {
+    const authLink = document.getElementById('auth-link');
+    const authDropdown = document.getElementById('auth-dropdown');
+    const tabLogin = document.getElementById('tab-login');
+    const tabSignup = document.getElementById('tab-signup');
+    const loginForm = document.getElementById('login-form');
+    const signupForm = document.getElementById('signup-form');
+    const loginSubmit = document.getElementById('login-submit');
+    const signupSubmit = document.getElementById('signup-submit');
+    const signoutBtn = document.getElementById('signout-btn');
+
+    if (authLink && authDropdown) {
+        authLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleAuthDropdown();
+        });
+        document.addEventListener('click', (e) => {
+            const navItem = document.getElementById('auth-nav-item');
+            if (!navItem) return;
+            if (!navItem.contains(e.target)) {
+                authDropdown.style.display = 'none';
+                authLink.setAttribute('aria-expanded','false');
+            }
+        });
+    }
+
+    if (tabLogin && tabSignup) {
+        tabLogin.addEventListener('click', () => { tabLogin.classList.add('active'); tabSignup.classList.remove('active'); if (loginForm) loginForm.style.display='block'; if (signupForm) signupForm.style.display='none'; });
+        tabSignup.addEventListener('click', () => { tabSignup.classList.add('active'); tabLogin.classList.remove('active'); if (signupForm) signupForm.style.display='block'; if (loginForm) loginForm.style.display='none'; });
+    }
+
+    if (loginSubmit) loginSubmit.addEventListener('click', async () => {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        if (email && password) {
+            if (supabaseClient) await supabaseSignIn(email,password); else showNotification('Fonctionnalité auth non configurée', 'warning');
+            updateAuthUI();
+            if (authDropdown) authDropdown.style.display='none';
+        }
+    });
+
+    if (signupSubmit) signupSubmit.addEventListener('click', async () => {
+        const email = document.getElementById('signup-email').value;
+        const password = document.getElementById('signup-password').value;
+        const firstname = document.getElementById('signup-firstname').value;
+        const lastname = document.getElementById('signup-lastname').value;
+        if (email && password) {
+            if (supabaseClient) await supabaseSignUp(email,password); else showNotification('Fonctionnalité auth non configurée', 'warning');
+            updateAuthUI();
+            if (authDropdown) authDropdown.style.display='none';
+        }
+    });
+
+    if (signoutBtn) signoutBtn.addEventListener('click', async () => { if (supabaseClient) await supabaseSignOut(); else { showNotification('Logout (local)', 'info'); } updateAuthUI(); });
+    // initial state
+    updateAuthUI();
+}
+
+function toggleAuthDropdown() {
+    const authDropdown = document.getElementById('auth-dropdown');
+    const authLink = document.getElementById('auth-link');
+    if (!authDropdown || !authLink) return;
+    authDropdown.style.display = authDropdown.style.display === 'block' ? 'none' : 'block';
+    authLink.setAttribute('aria-expanded', authDropdown.style.display === 'block' ? 'true' : 'false');
+}
+
+async function updateAuthUI() {
+    const signoutBtn = document.getElementById('signout-btn');
+    const authDropdown = document.getElementById('auth-dropdown');
+    const loginForm = document.getElementById('login-form');
+    const signupForm = document.getElementById('signup-form');
+    const user = await _getCurrentUser();
+    if (user) {
+        if (loginForm) loginForm.style.display='none';
+        if (signupForm) signupForm.style.display='none';
+        if (signoutBtn) signoutBtn.style.display='block';
+        const authLink = document.getElementById('auth-link');
+        if (authLink) authLink.textContent = '🔐 ' + (user.email || 'Connecté');
+    } else {
+        if (signoutBtn) signoutBtn.style.display='none';
+        if (loginForm) loginForm.style.display='block';
+        if (signupForm) signupForm.style.display='none';
+        const authLink = document.getElementById('auth-link');
+        if (authLink) authLink.textContent = '🔐 Connexion';
     }
 }
 
