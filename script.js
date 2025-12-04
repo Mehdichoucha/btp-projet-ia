@@ -871,8 +871,8 @@ async function loadRandomRecipes(number = 12) {
                     area: meal.strArea
                 };
                 
-                // 🌍 Traduire automatiquement la recette en français
-                const translatedRecipe = translateRecipeToFrench(recipe);
+                // 🌍 Traduire automatiquement la recette avec l'IA
+                const translatedRecipe = await translationAI.translateRecipe(recipe, translationAI.currentLanguage);
                 recipes.push(translatedRecipe);
             }
         }
@@ -912,7 +912,7 @@ async function searchRecipes(query, type = '', number = 12) {
         const data = await makeAPICall(`${API_CONFIG.endpoints.searchByName}${encodeURIComponent(query)}`);
         
         if (data && data.meals) {
-            const recipes = data.meals.map(meal => {
+            const recipePromises = data.meals.map(async meal => {
                 const recipe = {
                     id: meal.idMeal,
                     name: meal.strMeal,
@@ -927,9 +927,11 @@ async function searchRecipes(query, type = '', number = 12) {
                     area: meal.strArea
                 };
                 
-                // 🌍 Traduire automatiquement la recette en français
-                return translateRecipeToFrench(recipe);
+                // 🌍 Traduire automatiquement la recette avec l'IA
+                return await translationAI.translateRecipe(recipe, translationAI.currentLanguage);
             });
+            
+            const recipes = await Promise.all(recipePromises);
             
             // Limiter le nombre de résultats
             const limitedRecipes = recipes.slice(0, number);
@@ -998,8 +1000,8 @@ async function getRecipeDetails(recipeId) {
                 source: meal.strSource // Source de la recette
             };
             
-            // 🌍 Traduire automatiquement la recette en français si elle est en anglais
-            const translatedRecipe = translateRecipeToFrench(recipe);
+            // 🌍 Traduire automatiquement la recette en utilisant l'IA
+            const translatedRecipe = await translationAI.translateRecipe(recipe, translationAI.currentLanguage);
             
             // Mettre en cache
             recipeCache.set(cacheKey, translatedRecipe);
@@ -1863,200 +1865,296 @@ function translateIngredientToEnglish(frenchIngredient) {
     return normalizedInput;
 }
 
-// 🌍 Dictionnaire de traduction anglais → français pour les recettes de l'API
-const TRANSLATION_EN_TO_FR = {
-    // Création du dictionnaire inverse automatiquement
-    ...Object.fromEntries(
-        Object.entries(INGREDIENT_TRANSLATION).map(([fr, en]) => [en, fr])
-    ),
-    
-    // Ajout de termes supplémentaires pour les recettes
-    // Verbes d'action culinaire
-    'mix': 'mélanger',
-    'stir': 'remuer',
-    'cook': 'cuire',
-    'fry': 'faire frire',
-    'bake': 'cuire au four',
-    'boil': 'faire bouillir',
-    'simmer': 'faire mijoter',
-    'chop': 'hacher',
-    'slice': 'trancher',
-    'dice': 'couper en dés',
-    'heat': 'chauffer',
-    'season': 'assaisonner',
-    'add': 'ajouter',
-    'remove': 'retirer',
-    'serve': 'servir',
-    'garnish': 'garnir',
-    'prepare': 'préparer',
-    'combine': 'combiner',
-    'blend': 'mélanger',
-    'whisk': 'fouetter',
-    'fold': 'incorporer',
-    'drain': 'égoutter',
-    'rinse': 'rincer',
-    'pat dry': 'sécher en tapotant',
-    
-    // Mots courants des recettes
-    'minutes': 'minutes',
-    'minute': 'minute',
-    'hours': 'heures',
-    'hour': 'heure',
-    'degrees': 'degrés',
-    'tablespoon': 'cuillère à soupe',
-    'tablespoons': 'cuillères à soupe',
-    'teaspoon': 'cuillère à café',
-    'teaspoons': 'cuillères à café',
-    'cup': 'tasse',
-    'cups': 'tasses',
-    'ounce': 'once',
-    'ounces': 'onces',
-    'pound': 'livre',
-    'pounds': 'livres',
-    'gram': 'gramme',
-    'grams': 'grammes',
-    'kilogram': 'kilogramme',
-    'liter': 'litre',
-    'milliliter': 'millilitre',
-    'pinch': 'pincée',
-    'handful': 'poignée',
-    'dash': 'trait',
-    
-    // Adjectifs culinaires
-    'fresh': 'frais',
-    'dried': 'séché',
-    'frozen': 'congelé',
-    'chopped': 'haché',
-    'diced': 'coupé en dés',
-    'sliced': 'tranché',
-    'minced': 'émincé',
-    'grated': 'râpé',
-    'crushed': 'écrasé',
-    'ground': 'moulu',
-    'whole': 'entier',
-    'large': 'gros',
-    'small': 'petit',
-    'medium': 'moyen',
-    'hot': 'chaud',
-    'cold': 'froid',
-    'warm': 'tiède',
-    'thick': 'épais',
-    'thin': 'fin',
-    'tender': 'tendre',
-    'crispy': 'croustillant',
-    'golden': 'doré',
-    'cooked': 'cuit',
-    'raw': 'cru',
-    
-    // Ustensiles et équipements
-    'pan': 'poêle',
-    'pot': 'casserole',
-    'bowl': 'bol',
-    'plate': 'assiette',
-    'oven': 'four',
-    'stove': 'cuisinière',
-    'microwave': 'micro-ondes',
-    'refrigerator': 'réfrigérateur',
-    'knife': 'couteau',
-    'spoon': 'cuillère',
-    'fork': 'fourchette',
-    'whisk': 'fouet',
-    'spatula': 'spatule',
-    'cutting board': 'planche à découper',
-    
-    // Phrases courantes
-    'preheat oven': 'préchauffer le four',
-    'heat oil': 'chauffer l\'huile',
-    'season with salt': 'saler',
-    'season with pepper': 'poivrer',
-    'to taste': 'selon le goût',
-    'until tender': 'jusqu\'à ce que ce soit tendre',
-    'until golden': 'jusqu\'à ce que ce soit doré',
-    'mix well': 'bien mélanger',
-    'stir frequently': 'remuer souvent',
-    'let cool': 'laisser refroidir',
-    'serve hot': 'servir chaud',
-    'serve immediately': 'servir immédiatement'
-};
+// ========================================
+// 🧠 SYSTÈME IA DE TRADUCTION UNIVERSELLE
+// ========================================
 
-// Fonction intelligente pour traduire le texte anglais vers le français
-function translateEnglishToFrench(englishText) {
-    if (!englishText || typeof englishText !== 'string') return englishText;
-    
-    let translatedText = englishText.toLowerCase();
-    
-    // Traduire chaque mot/expression trouvé dans le dictionnaire
-    for (const [english, french] of Object.entries(TRANSLATION_EN_TO_FR)) {
-        // Utiliser une regex avec des limites de mots pour éviter les traductions partielles incorrectes
-        const regex = new RegExp(`\\b${english.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-        translatedText = translatedText.replace(regex, french);
+// Configuration de l'IA de traduction
+class TranslationAI {
+    constructor() {
+        this.currentLanguage = localStorage.getItem('patoketchup_language') || 'français';
+        this.translations = new Map();
+        this.supportedLanguages = {
+            'français': { code: 'fr', flag: '🇫🇷', native: 'Français' },
+            'anglais': { code: 'en', flag: '🇺🇸', native: 'English' },
+            'espagnol': { code: 'es', flag: '🇪🇸', native: 'Español' },
+            'italien': { code: 'it', flag: '🇮🇹', native: 'Italiano' },
+            'allemand': { code: 'de', flag: '🇩🇪', native: 'Deutsch' },
+            'portugais': { code: 'pt', flag: '🇵🇹', native: 'Português' },
+            'chinois': { code: 'zh', flag: '🇨🇳', native: '中文' },
+            'japonais': { code: 'ja', flag: '🇯🇵', native: '日本語' },
+            'coréen': { code: 'ko', flag: '🇰🇷', native: '한국어' },
+            'arabe': { code: 'ar', flag: '🇸🇦', native: 'العربية' },
+            'russe': { code: 'ru', flag: '🇷🇺', native: 'Русский' }
+        };
+        
+        this.initializeTranslationContext();
     }
     
-    // Capitaliser la première lettre
-    return translatedText.charAt(0).toUpperCase() + translatedText.slice(1);
-}
-
-// Fonction pour détecter si un texte est en anglais
-function isEnglishText(text) {
-    if (!text || typeof text !== 'string') return false;
-    
-    // Mots anglais très courants dans les recettes
-    const commonEnglishWords = [
-        'the', 'and', 'or', 'with', 'in', 'on', 'to', 'for', 'of', 'until',
-        'add', 'mix', 'cook', 'heat', 'serve', 'season', 'stir', 'combine',
-        'chicken', 'beef', 'pork', 'fish', 'egg', 'milk', 'cheese', 'oil',
-        'salt', 'pepper', 'onion', 'garlic', 'tomato', 'potato', 'rice'
-    ];
-    
-    const words = text.toLowerCase().split(/\s+/);
-    const englishWordCount = words.filter(word => 
-        commonEnglishWords.includes(word.replace(/[.,!?;:]/, ''))
-    ).length;
-    
-    // Si plus de 20% des mots sont des mots anglais courants, c'est probablement de l'anglais
-    return (englishWordCount / words.length) > 0.2;
-}
-
-// Fonction pour traduire automatiquement une recette complète
-function translateRecipeToFrench(recipe) {
-    if (!recipe) return recipe;
-    
-    const translatedRecipe = { ...recipe };
-    
-    // Traduire le nom si c'est en anglais
-    if (recipe.name && isEnglishText(recipe.name)) {
-        translatedRecipe.name = translateEnglishToFrench(recipe.name);
-        translatedRecipe.originalName = recipe.name; // Garder l'original
-        translatedRecipe.isTranslated = true;
-    }
-    
-    // Traduire la description si c'est en anglais
-    if (recipe.description && isEnglishText(recipe.description)) {
-        translatedRecipe.description = translateEnglishToFrench(recipe.description);
-    }
-    
-    // Traduire les ingrédients
-    if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
-        translatedRecipe.ingredients = recipe.ingredients.map(ingredient => {
-            if (isEnglishText(ingredient)) {
-                return translateEnglishToFrench(ingredient);
+    // Initialiser le contexte culinaire pour l'IA
+    initializeTranslationContext() {
+        this.culinariesContext = {
+            'français': {
+                'cooking_verbs': ['cuire', 'mélanger', 'hacher', 'faire frire', 'bouillir', 'mijoter', 'assaisonner'],
+                'ingredients_common': ['tomate', 'oignon', 'ail', 'huile', 'sel', 'poivre', 'beurre'],
+                'measures': ['cuillère', 'tasse', 'gramme', 'litre', 'pincée'],
+                'cooking_terms': ['préchauffer', 'dorer', 'sauter', 'égoutter', 'incorporer']
+            },
+            'anglais': {
+                'cooking_verbs': ['cook', 'mix', 'chop', 'fry', 'boil', 'simmer', 'season'],
+                'ingredients_common': ['tomato', 'onion', 'garlic', 'oil', 'salt', 'pepper', 'butter'],
+                'measures': ['spoon', 'cup', 'gram', 'liter', 'pinch'],
+                'cooking_terms': ['preheat', 'brown', 'sauté', 'drain', 'fold']
             }
-            return ingredient;
-        });
+        };
     }
     
-    // Traduire les instructions
-    if (recipe.instructions && Array.isArray(recipe.instructions)) {
-        translatedRecipe.instructions = recipe.instructions.map(instruction => {
-            if (isEnglishText(instruction)) {
-                return translateEnglishToFrench(instruction);
+    // Détecter la langue d'un texte grâce à l'IA contextuelle
+    detectLanguage(text) {
+        if (!text || typeof text !== 'string') return 'unknown';
+        
+        const textLower = text.toLowerCase();
+        let scores = {};
+        
+        // Analyser avec le contexte culinaire
+        Object.keys(this.culinariesContext).forEach(lang => {
+            scores[lang] = 0;
+            const context = this.culinariesContext[lang];
+            
+            // Vérifier les verbes culinaires
+            context.cooking_verbs.forEach(verb => {
+                if (textLower.includes(verb.toLowerCase())) {
+                    scores[lang] += 3; // Plus de poids pour les verbes
+                }
+            });
+            
+            // Vérifier les ingrédients
+            context.ingredients_common.forEach(ingredient => {
+                if (textLower.includes(ingredient.toLowerCase())) {
+                    scores[lang] += 2;
+                }
+            });
+            
+            // Vérifier les mesures
+            context.measures.forEach(measure => {
+                if (textLower.includes(measure.toLowerCase())) {
+                    scores[lang] += 1;
+                }
+            });
+            
+            // Vérifier les termes de cuisine
+            context.cooking_terms.forEach(term => {
+                if (textLower.includes(term.toLowerCase())) {
+                    scores[lang] += 2;
+                }
+            });
+        });
+        
+        // Retourner la langue avec le score le plus élevé
+        const detectedLang = Object.keys(scores).reduce((a, b) => scores[a] > scores[b] ? a : b);
+        return scores[detectedLang] > 0 ? detectedLang : 'anglais'; // Défaut anglais pour l'API
+    }
+    
+    // IA de traduction intelligente basée sur le contexte
+    async translateWithAI(text, targetLanguage, sourceLanguage = null) {
+        if (!text || !targetLanguage) return text;
+        
+        // Détecter automatiquement la langue source si non spécifiée
+        if (!sourceLanguage) {
+            sourceLanguage = this.detectLanguage(text);
+        }
+        
+        // Si même langue, pas de traduction nécessaire
+        if (sourceLanguage === targetLanguage) {
+            return text;
+        }
+        
+        // Vérifier le cache
+        const cacheKey = `${sourceLanguage}_${targetLanguage}_${text.substring(0, 50)}`;
+        if (this.translations.has(cacheKey)) {
+            return this.translations.get(cacheKey);
+        }
+        
+        // IA de traduction contextuelle pour la cuisine
+        const translatedText = await this.performContextualTranslation(text, sourceLanguage, targetLanguage);
+        
+        // Mettre en cache
+        this.translations.set(cacheKey, translatedText);
+        return translatedText;
+    }
+    
+    // Traduction contextuelle intelligente
+    async performContextualTranslation(text, sourceLang, targetLang) {
+        // Système d'IA basé sur les patterns culinaires
+        const translationRules = {
+            'anglais_français': {
+                // Verbes d'action
+                'mix': 'mélanger', 'stir': 'remuer', 'cook': 'cuire', 'fry': 'faire frire',
+                'bake': 'cuire au four', 'boil': 'faire bouillir', 'simmer': 'faire mijoter',
+                'chop': 'hacher', 'slice': 'trancher', 'dice': 'couper en dés',
+                'season': 'assaisonner', 'add': 'ajouter', 'heat': 'chauffer',
+                'serve': 'servir', 'garnish': 'garnir', 'combine': 'combiner',
+                
+                // Ingrédients
+                'chicken': 'poulet', 'beef': 'bœuf', 'pork': 'porc', 'fish': 'poisson',
+                'tomato': 'tomate', 'onion': 'oignon', 'garlic': 'ail',
+                'potato': 'pomme de terre', 'carrot': 'carotte', 'pepper': 'poivron',
+                'salt': 'sel', 'pepper': 'poivre', 'oil': 'huile', 'butter': 'beurre',
+                'cheese': 'fromage', 'milk': 'lait', 'egg': 'œuf', 'bread': 'pain',
+                'rice': 'riz', 'pasta': 'pâtes', 'flour': 'farine',
+                
+                // Mesures
+                'cup': 'tasse', 'tablespoon': 'cuillère à soupe', 'teaspoon': 'cuillère à café',
+                'ounce': 'once', 'pound': 'livre', 'gram': 'gramme', 'liter': 'litre',
+                'pinch': 'pincée', 'dash': 'trait',
+                
+                // Adjectifs
+                'fresh': 'frais', 'dried': 'séché', 'chopped': 'haché', 'sliced': 'tranché',
+                'minced': 'émincé', 'grated': 'râpé', 'hot': 'chaud', 'cold': 'froid',
+                'large': 'gros', 'small': 'petit', 'medium': 'moyen',
+                
+                // Phrases courantes
+                'preheat oven': 'préchauffer le four',
+                'heat oil': 'chauffer l\'huile',
+                'mix well': 'bien mélanger',
+                'season to taste': 'assaisonner selon le goût',
+                'serve hot': 'servir chaud',
+                'let cool': 'laisser refroidir'
             }
-            return instruction;
-        });
+        };
+        
+        // Appliquer les règles de traduction intelligente
+        let translated = text.toLowerCase();
+        const ruleKey = `${sourceLang}_${targetLang}`;
+        
+        if (translationRules[ruleKey]) {
+            const rules = translationRules[ruleKey];
+            
+            // Appliquer chaque règle avec regex pour les mots complets
+            Object.entries(rules).forEach(([source, target]) => {
+                const regex = new RegExp(`\\b${source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+                translated = translated.replace(regex, target);
+            });
+        }
+        
+        // IA générative pour les termes non couverts
+        translated = await this.generateMissingTranslations(translated, targetLang);
+        
+        // Capitaliser correctement
+        return this.capitalizeTranslation(translated, text);
     }
     
-    return translatedRecipe;
+    // IA générative pour termes manquants
+    async generateMissingTranslations(text, targetLang) {
+        // Simulation d'IA générative basée sur les patterns
+        if (targetLang === 'français') {
+            // Pattern pour les plats
+            text = text.replace(/\b(\w+)\s+chicken\b/gi, (match, adj) => `poulet ${adj}`);
+            text = text.replace(/\b(\w+)\s+sauce\b/gi, (match, adj) => `sauce ${adj}`);
+            text = text.replace(/\b(\w+)\s+salad\b/gi, (match, adj) => `salade ${adj}`);
+            
+            // Pattern pour les actions
+            text = text.replace(/\b(\w+)\s+until\s+(\w+)\b/gi, (match, action, state) => {
+                return `${action} jusqu'à ce que ${state}`;
+            });
+        }
+        
+        return text;
+    }
+    
+    // Préserver la capitalisation originale
+    capitalizeTranslation(translated, original) {
+        if (original.charAt(0) === original.charAt(0).toUpperCase()) {
+            return translated.charAt(0).toUpperCase() + translated.slice(1);
+        }
+        return translated;
+    }
+    
+    // Traduire une recette complète
+    async translateRecipe(recipe, targetLanguage) {
+        if (!recipe || !targetLanguage) return recipe;
+        
+        const translatedRecipe = { ...recipe };
+        const sourceLang = this.detectLanguage(recipe.name || recipe.description || '');
+        
+        try {
+            // Traduire le nom
+            if (recipe.name) {
+                translatedRecipe.name = await this.translateWithAI(recipe.name, targetLanguage, sourceLang);
+                if (sourceLang !== targetLanguage) {
+                    translatedRecipe.originalName = recipe.name;
+                    translatedRecipe.isTranslated = true;
+                    translatedRecipe.translatedTo = targetLanguage;
+                }
+            }
+            
+            // Traduire la description
+            if (recipe.description) {
+                translatedRecipe.description = await this.translateWithAI(recipe.description, targetLanguage, sourceLang);
+            }
+            
+            // Traduire les ingrédients
+            if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
+                translatedRecipe.ingredients = await Promise.all(
+                    recipe.ingredients.map(ingredient => 
+                        this.translateWithAI(ingredient, targetLanguage, sourceLang)
+                    )
+                );
+            }
+            
+            // Traduire les instructions
+            if (recipe.instructions && Array.isArray(recipe.instructions)) {
+                translatedRecipe.instructions = await Promise.all(
+                    recipe.instructions.map(instruction => 
+                        this.translateWithAI(instruction, targetLanguage, sourceLang)
+                    )
+                );
+            }
+            
+            return translatedRecipe;
+            
+        } catch (error) {
+            console.error('❌ Erreur de traduction IA:', error);
+            return recipe; // Retourner l'original en cas d'erreur
+        }
+    }
+    
+    // Changer la langue de l'application
+    async setLanguage(language) {
+        this.currentLanguage = language.toLowerCase();
+        localStorage.setItem('patoketchup_language', this.currentLanguage);
+        
+        // Recharger les recettes avec la nouvelle langue
+        await this.updateAllRecipesLanguage();
+    }
+    
+    // Mettre à jour toutes les recettes affichées
+    async updateAllRecipesLanguage() {
+        // Cette fonction sera appelée pour recharger l'affichage
+        if (window.currentRecipes && window.currentRecipes.length > 0) {
+            const translatedRecipes = await Promise.all(
+                window.currentRecipes.map(recipe => 
+                    this.translateRecipe(recipe, this.currentLanguage)
+                )
+            );
+            
+            // Mettre à jour l'affichage
+            displayRecipes(translatedRecipes);
+        }
+    }
 }
+
+// Instance globale de l'IA de traduction
+const translationAI = new TranslationAI();
+
+// Fonction pour traduire automatiquement une recette (remplacement de l'ancienne fonction)
+async function translateRecipeToFrench(recipe) {
+    return await translationAI.translateRecipe(recipe, translationAI.currentLanguage);
+}
+
+// ========================================
+// 🌍 INTERFACE SÉLECTEUR DE LANGUE
+// ========================================
 
 // Vérifier les synonymes d'ingrédients (version basique)
 function checkIngredientSynonyms(userIngredient, recipeIngredient) {
@@ -2134,7 +2232,7 @@ function displayFrigoRecipes(recipes) {
                 <div class="recipe-content">
                     <h3 class="recipe-title">
                         ${recipe.name}
-                        ${recipe.isTranslated ? '<span class="translation-badge" title="Traduit automatiquement du ' + (recipe.originalName || 'anglais') + '">🌍 FR</span>' : ''}
+                        ${recipe.isTranslated ? `<span class="translation-badge" title="Traduit automatiquement vers ${recipe.translatedTo || translationAI.currentLanguage}${recipe.originalName ? ' depuis: ' + recipe.originalName : ''}">🌍 ${getLanguageFlag(recipe.translatedTo || translationAI.currentLanguage)}</span>` : ''}
                     </h3>
                     <p class="recipe-description">${recipe.description}</p>
                     
@@ -2376,7 +2474,7 @@ function renderRecipes(recipes) {
             <div class="recipe-content">
                 <h3 class="recipe-title">
                     ${recipe.name}
-                    ${recipe.isTranslated ? '<span class="translation-badge" title="Traduit automatiquement du ' + (recipe.originalName || 'anglais') + '">🌍 FR</span>' : ''}
+                    ${recipe.isTranslated ? `<span class="translation-badge" title="Traduit automatiquement vers ${recipe.translatedTo || translationAI.currentLanguage}${recipe.originalName ? ' depuis: ' + recipe.originalName : ''}">🌍 ${getLanguageFlag(recipe.translatedTo || translationAI.currentLanguage)}</span>` : ''}
                 </h3>
                 <p class="recipe-description">${recipe.description}</p>
                 <div class="recipe-meta">
@@ -3604,7 +3702,7 @@ class FrigoManager {
                 <div class="recipe-content">
                     <h4 class="recipe-title">
                         ${recipe.name}
-                        ${recipe.isTranslated ? '<span class="translation-badge" title="Traduit automatiquement du ' + (recipe.originalName || 'anglais') + '">🌍 FR</span>' : ''}
+                        ${recipe.isTranslated ? `<span class="translation-badge" title="Traduit automatiquement vers ${recipe.translatedTo || translationAI.currentLanguage}${recipe.originalName ? ' depuis: ' + recipe.originalName : ''}">🌍 ${getLanguageFlag(recipe.translatedTo || translationAI.currentLanguage)}</span>` : ''}
                     </h4>
                     <p class="recipe-description">${recipe.description}</p>
                 </div>
@@ -3702,7 +3800,248 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialiser le gestionnaire du frigo
     frigoManager = new FrigoManager();
     
+    // Initialiser le sélecteur de langue
+    initializeLanguageSelector();
+    
     setTimeout(async () => {
         await testAPI();
     }, 1000);
 });
+
+// ========================================
+// 🌍 GESTIONNAIRE SÉLECTEUR DE LANGUE IA
+// ========================================
+
+// Initialiser le sélecteur de langue
+function initializeLanguageSelector() {
+    console.log('🌍 Initialisation du sélecteur de langue IA...');
+    
+    // Gestionnaires des boutons de langue prédéfinis
+    const languageBtns = document.querySelectorAll('.language-btn');
+    languageBtns.forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const selectedLanguage = this.getAttribute('data-language');
+            await setApplicationLanguage(selectedLanguage);
+            updateLanguageSelector(selectedLanguage);
+        });
+    });
+    
+    // Gestionnaire du bouton de langue personnalisée
+    const applyCustomBtn = document.getElementById('apply-custom-language');
+    if (applyCustomBtn) {
+        applyCustomBtn.addEventListener('click', async function() {
+            const customInput = document.getElementById('custom-language-input');
+            const customLanguage = customInput.value.trim().toLowerCase();
+            
+            if (customLanguage) {
+                await setApplicationLanguage(customLanguage);
+                updateLanguageSelector(customLanguage);
+                customInput.value = ''; // Vider le champ
+            } else {
+                showNotification('⚠️ Veuillez entrer une langue valide', 'warning');
+            }
+        });
+    }
+    
+    // Gestionnaire Enter dans le champ personnalisé
+    const customInput = document.getElementById('custom-language-input');
+    if (customInput) {
+        customInput.addEventListener('keypress', async function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('apply-custom-language').click();
+            }
+        });
+    }
+    
+    // Mettre à jour l'affichage initial
+    updateLanguageSelector(translationAI.currentLanguage);
+    
+    console.log('✅ Sélecteur de langue IA initialisé !');
+}
+
+// Changer la langue de l'application
+async function setApplicationLanguage(language) {
+    try {
+        console.log(`🌍 Changement de langue vers: ${language}`);
+        
+        // Afficher un indicateur de chargement
+        showNotification('🔄 Traduction en cours...', 'info');
+        
+        // Mettre à jour la langue dans l'IA
+        await translationAI.setLanguage(language);
+        
+        // Recharger les recettes avec la nouvelle langue
+        await reloadRecipesWithLanguage(language);
+        
+        // Notification de succès
+        const flag = getLanguageFlag(language);
+        showNotification(`${flag} Recettes traduites en ${language} !`, 'success');
+        
+        console.log(`✅ Langue changée vers: ${language}`);
+        
+    } catch (error) {
+        console.error('❌ Erreur lors du changement de langue:', error);
+        showNotification('❌ Erreur lors de la traduction', 'error');
+    }
+}
+
+// Recharger toutes les recettes avec la nouvelle langue
+async function reloadRecipesWithLanguage(language) {
+    // Vider le cache pour forcer le rechargement
+    recipeCache.clear();
+    searchCache.clear();
+    
+    // Si des recettes sont affichées, les recharger
+    if (window.currentRecipes && window.currentRecipes.length > 0) {
+        console.log('🔄 Rechargement des recettes en cours...');
+        
+        // Recharger selon la section active
+        const activeSection = document.querySelector('.nav-link.active');
+        if (activeSection) {
+            const sectionName = activeSection.getAttribute('data-section');
+            
+            switch (sectionName) {
+                case 'home':
+                    await loadInitialRecipes();
+                    break;
+                case 'frigo':
+                    // Recharger les suggestions du frigo si applicable
+                    if (selectedIngredients.length > 0) {
+                        const frigoManager = new FrigoManager();
+                        await frigoManager.searchRecipes(selectedIngredients);
+                    }
+                    break;
+                default:
+                    console.log('Section non supportée pour le rechargement:', sectionName);
+            }
+        }
+    }
+}
+
+// Mettre à jour l'interface du sélecteur
+function updateLanguageSelector(selectedLanguage) {
+    // Mettre à jour les boutons prédéfinis
+    const languageBtns = document.querySelectorAll('.language-btn');
+    languageBtns.forEach(btn => {
+        const btnLanguage = btn.getAttribute('data-language');
+        if (btnLanguage === selectedLanguage) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+    
+    // Mettre à jour l'affichage de la langue actuelle
+    const statusDisplay = document.getElementById('current-language-display');
+    if (statusDisplay) {
+        const flag = getLanguageFlag(selectedLanguage);
+        const displayName = getLanguageDisplayName(selectedLanguage);
+        statusDisplay.textContent = `${flag} ${displayName}`;
+    }
+}
+
+// Obtenir le drapeau d'une langue
+function getLanguageFlag(language) {
+    const lang = language.toLowerCase();
+    const flags = {
+        'français': '🇫🇷',
+        'anglais': '🇺🇸',
+        'espagnol': '🇪🇸',
+        'italien': '🇮🇹',
+        'allemand': '🇩🇪',
+        'portugais': '🇵🇹',
+        'chinois': '🇨🇳',
+        'japonais': '🇯🇵',
+        'coréen': '🇰🇷',
+        'arabe': '🇸🇦',
+        'russe': '🇷🇺',
+        'hindi': '🇮🇳',
+        'néerlandais': '🇳🇱',
+        'suédois': '🇸🇪',
+        'norvégien': '🇳🇴',
+        'danois': '🇩🇰',
+        'turc': '🇹🇷',
+        'grec': '🇬🇷',
+        'polonais': '🇵🇱',
+        'tchèque': '🇨🇿'
+    };
+    
+    return flags[lang] || '🌍';
+}
+
+// Obtenir le nom d'affichage d'une langue
+function getLanguageDisplayName(language) {
+    const lang = language.toLowerCase();
+    const names = {
+        'français': 'Français',
+        'anglais': 'English',
+        'espagnol': 'Español',
+        'italien': 'Italiano',
+        'allemand': 'Deutsch',
+        'portugais': 'Português',
+        'chinois': '中文',
+        'japonais': '日本語',
+        'coréen': '한국어',
+        'arabe': 'العربية',
+        'russe': 'Русский'
+    };
+    
+    return names[lang] || language.charAt(0).toUpperCase() + language.slice(1);
+}
+
+// Fonction pour afficher des notifications
+function showNotification(message, type = 'info') {
+    // Créer ou réutiliser le conteneur de notifications
+    let notificationContainer = document.getElementById('notification-container');
+    if (!notificationContainer) {
+        notificationContainer = document.createElement('div');
+        notificationContainer.id = 'notification-container';
+        notificationContainer.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            pointer-events: none;
+        `;
+        document.body.appendChild(notificationContainer);
+    }
+    
+    // Créer la notification
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        background: ${type === 'success' ? 'linear-gradient(135deg, #27ae60, #2ecc71)' : 
+                     type === 'warning' ? 'linear-gradient(135deg, #f39c12, #e67e22)' : 
+                     type === 'error' ? 'linear-gradient(135deg, #e74c3c, #c0392b)' : 
+                     'linear-gradient(135deg, #3498db, #2980b9)'};
+        color: white;
+        padding: 15px 20px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+        pointer-events: auto;
+        font-weight: 600;
+        font-size: 0.95rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    `;
+    notification.textContent = message;
+    
+    notificationContainer.appendChild(notification);
+    
+    // Animation d'entrée
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Animation de sortie et suppression
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}

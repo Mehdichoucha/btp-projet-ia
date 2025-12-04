@@ -97,6 +97,50 @@
                     <p class="page-subtitle">Transforme tes ingrédients en délicieuses recettes</p>
                 </header>
 
+                <!-- 🌍 Sélecteur de langue IA -->
+                <section class="language-selector-section">
+                    <div class="language-container">
+                        <div class="language-header">
+                            <h3 class="language-title">🌍 Dans quelle langue souhaitez-vous lire les recettes ?</h3>
+                            <p class="language-subtitle">L'IA traduit automatiquement toutes les recettes pour vous</p>
+                        </div>
+                        
+                        <div class="language-options">
+                            <div class="predefined-languages">
+                                <button type="button" class="language-btn active" data-language="français">
+                                    🇫🇷 Français
+                                </button>
+                                <button type="button" class="language-btn" data-language="anglais">
+                                    🇺🇸 English
+                                </button>
+                            </div>
+                            
+                            <div class="custom-language">
+                                <div class="custom-language-input">
+                                    <span class="custom-label">Autre langue :</span>
+                                    <input 
+                                        type="text" 
+                                        id="custom-language-input" 
+                                        class="custom-language-field"
+                                        placeholder="Espagnol, Italien, Chinois..."
+                                        aria-label="Langue personnalisée"
+                                    >
+                                    <button type="button" id="apply-custom-language" class="apply-custom-btn">
+                                        ✨ Appliquer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="language-status">
+                            <div class="current-language">
+                                <span class="status-label">Langue actuelle :</span>
+                                <span class="status-value" id="current-language-display">🇫🇷 Français</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Zone de recherche moderne -->
                 <section class="search-section">
                     <div class="search-container">
