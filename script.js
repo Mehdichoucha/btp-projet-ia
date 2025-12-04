@@ -313,38 +313,6 @@ class AuthManager {
     getCurrentUser() { return currentUser; }
 
     // Gestion des favoris
-    addToFavorites(recipeId) {
-        if (!isUserLoggedIn || !currentUser) {
-            this.showNotification('Connectez-vous pour sauvegarder des recettes', 'warning');
-            return false;
-        }
-
-        if (!currentUser.favorites.includes(recipeId)) {
-            currentUser.favorites.push(recipeId);
-            currentUser.stats.recipesSaved++;
-            this.saveCurrentUser(currentUser);
-            this.showNotification('Recette ajoutée aux favoris ! ❤️', 'success');
-            return true;
-        }
-        
-        this.showNotification('Cette recette est déjà dans vos favoris', 'info');
-        return false;
-    }
-
-    removeFromFavorites(recipeId) {
-        if (!isUserLoggedIn || !currentUser) return false;
-
-        const index = currentUser.favorites.indexOf(recipeId);
-        if (index > -1) {
-            currentUser.favorites.splice(index, 1);
-            currentUser.stats.recipesSaved--;
-            this.saveCurrentUser(currentUser);
-            this.showNotification('Recette retirée des favoris', 'info');
-            return true;
-        }
-        return false;
-    }
-
     markAsCooked(recipeId) {
         if (!isUserLoggedIn || !currentUser) return false;
 
@@ -377,14 +345,13 @@ function addRecipeActions(recipeElement, recipeId) {
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'recipe-actions';
 
-    const isFavorite = authManager.isLoggedIn() && 
-                      authManager.getCurrentUser()?.favorites.includes(recipeId);
+    const isFavorite = isRecipeInFavorites(recipeId);
     const isCooked = authManager.isLoggedIn() && 
                      authManager.getCurrentUser()?.cookedRecipes.includes(recipeId);
 
     actionsDiv.innerHTML = `
         <button class="action-btn favorite-btn ${isFavorite ? 'active' : ''}" 
-                onclick="toggleFavorite('${recipeId}', this)" 
+                onclick="toggleFavorite(event, '${recipeId}')" 
                 title="${isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
             ${isFavorite ? '❤️' : '🤍'}
         </button>
@@ -465,28 +432,6 @@ function addRecipeActions(recipeElement, recipeId) {
 }
 
 // Basculer le statut favori d'une recette
-function toggleFavorite(recipeId, buttonElement) {
-    if (!authManager?.isLoggedIn()) {
-        authManager.showNotification('Connectez-vous pour sauvegarder des recettes', 'warning');
-        return;
-    }
-
-    const currentUser = authManager.getCurrentUser();
-    const isFavorite = currentUser.favorites.includes(recipeId);
-
-    if (isFavorite) {
-        authManager.removeFromFavorites(recipeId);
-        buttonElement.innerHTML = '🤍';
-        buttonElement.classList.remove('active');
-        buttonElement.title = 'Ajouter aux favoris';
-    } else {
-        authManager.addToFavorites(recipeId);
-        buttonElement.innerHTML = '❤️';
-        buttonElement.classList.add('active');
-        buttonElement.title = 'Retirer des favoris';
-    }
-}
-
 // Marquer une recette comme cuisinée
 function markRecipeAsCooked(recipeId, buttonElement) {
     if (!authManager?.isLoggedIn()) {
@@ -555,8 +500,13 @@ function observeRecipeCards() {
     // Observer les changements dans les conteneurs de recettes
     const containers = [
         document.getElementById('recipes-grid'),
+        document.getElementById('recipes-grid-sucrees'),
+        document.getElementById('recipes-grid-salees'),
+        document.getElementById('recipes-grid-vegetariennes'),
         document.getElementById('search-results'),
-        document.getElementById('frigo-recipes-grid')
+        document.getElementById('frigo-recipes-grid-sucrees'),
+        document.getElementById('frigo-recipes-grid-salees'),
+        document.getElementById('frigo-recipes-grid-vegetariennes')
     ].filter(Boolean);
 
     containers.forEach(container => {
@@ -857,6 +807,7 @@ async function loadRandomRecipes(number = 12) {
             if (data && data.meals && data.meals.length > 0) {
                 const meal = data.meals[0];
                 
+                // Créer l'objet recette de base
                 const recipe = {
                     id: meal.idMeal,
                     name: meal.strMeal,
@@ -871,9 +822,8 @@ async function loadRandomRecipes(number = 12) {
                     area: meal.strArea
                 };
                 
-                // 🌍 Traduire automatiquement la recette avec l'IA
-                const translatedRecipe = await translationAI.translateRecipe(recipe, translationAI.currentLanguage);
-                recipes.push(translatedRecipe);
+                // Ajouter la recette directement (la traduction se fera plus tard si nécessaire)
+                recipes.push(recipe);
             }
         }
         
@@ -912,7 +862,7 @@ async function searchRecipes(query, type = '', number = 12) {
         const data = await makeAPICall(`${API_CONFIG.endpoints.searchByName}${encodeURIComponent(query)}`);
         
         if (data && data.meals) {
-            const recipePromises = data.meals.map(async meal => {
+            const recipes = data.meals.map(meal => {
                 const recipe = {
                     id: meal.idMeal,
                     name: meal.strMeal,
@@ -927,11 +877,9 @@ async function searchRecipes(query, type = '', number = 12) {
                     area: meal.strArea
                 };
                 
-                // 🌍 Traduire automatiquement la recette avec l'IA
-                return await translationAI.translateRecipe(recipe, translationAI.currentLanguage);
+                // ⚡ Pas de traduction ici - traduction à la demande dans openRecipeModal
+                return recipe;
             });
-            
-            const recipes = await Promise.all(recipePromises);
             
             // Limiter le nombre de résultats
             const limitedRecipes = recipes.slice(0, number);
@@ -1020,12 +968,20 @@ async function getRecipeDetails(recipeId) {
 function getCategoryFromDishTypes(dishTypes) {
     const dishTypeStr = dishTypes.join(' ').toLowerCase();
     
-    if (dishTypeStr.includes('appetizer') || dishTypeStr.includes('starter') || dishTypeStr.includes('salad')) {
-        return 'entrees';
-    } else if (dishTypeStr.includes('dessert') || dishTypeStr.includes('sweet')) {
-        return 'desserts';
+    // Tous les desserts vont dans "sucrées"
+    if (dishTypeStr.includes('dessert') || dishTypeStr.includes('sweet') || 
+        dishTypeStr.includes('cake') || dishTypeStr.includes('cookie') ||
+        dishTypeStr.includes('pie') || dishTypeStr.includes('chocolate') ||
+        dishTypeStr.includes('sugar') || dishTypeStr.includes('candy')) {
+        return 'sucrees';
+    } else if (dishTypeStr.includes('appetizer') || dishTypeStr.includes('starter') || 
+               dishTypeStr.includes('salad') || dishTypeStr.includes('soup')) {
+        return 'salees';
+    } else if (dishTypeStr.includes('vegetarian') || dishTypeStr.includes('vegan') ||
+               dishTypeStr.includes('veggie')) {
+        return 'vegetariennes';
     } else {
-        return 'plats';
+        return 'salees'; // Par défaut : salé
     }
 }
 
@@ -1056,118 +1012,255 @@ function setLoadingState(loading) {
 // ========================================
 
 // Afficher les recettes favorites de l'utilisateur
-function displayFavorites() {
-    if (!authManager?.isLoggedIn()) {
-        showFavoritesPrompt();
-        return;
-    }
+// ========================================
+// GESTION DES FAVORIS
+// ========================================
 
-    const currentUser = authManager.getCurrentUser();
-    const favoriteRecipes = currentUser.favorites;
+// Récupérer les favoris depuis localStorage
+function getFavorites() {
+    const favorites = localStorage.getItem('patoketchup-favorites');
+    return favorites ? JSON.parse(favorites) : [];
+}
 
-    if (favoriteRecipes.length === 0) {
-        showEmptyFavorites();
-        return;
-    }
+// Sauvegarder les favoris dans localStorage
+function saveFavorites(favorites) {
+    localStorage.setItem('patoketchup-favorites', JSON.stringify(favorites));
+}
 
-    // Ici, vous pourriez récupérer les détails complets des recettes favorites
-    // Pour l'instant, on affiche un placeholder avec les IDs
-    const favoritesContainer = document.getElementById('favorites-content') || 
-                               document.querySelector('[data-section="favorites"]')?.parentElement?.querySelector('.content-section');
+// Vérifier si une recette est dans les favoris
+function isRecipeInFavorites(recipeId) {
+    const favorites = getFavorites();
+    return favorites.some(fav => fav.id === recipeId);
+}
+
+// Ajouter une recette aux favoris
+function addToFavorites(recipe) {
+    console.log('➕ Ajout aux favoris:', recipe.name);
+    const favorites = getFavorites();
     
-    if (favoritesContainer) {
-        favoritesContainer.innerHTML = `
-            <div class="favorites-section">
-                <div class="section-header">
-                    <h2>❤️ Mes Recettes Favorites</h2>
-                    <p>Retrouvez toutes vos recettes sauvegardées (${favoriteRecipes.length})</p>
-                </div>
-                <div class="favorites-grid">
-                    ${favoriteRecipes.map(recipeId => `
-                        <div class="favorite-recipe-card" data-recipe-id="${recipeId}">
-                            <div class="recipe-placeholder">
-                                <div class="placeholder-image">🍽️</div>
-                                <div class="recipe-info">
-                                    <h4>Recette #${recipeId}</h4>
-                                    <p>Recette sauvegardée</p>
-                                </div>
-                                <div class="recipe-actions-mini">
-                                    <button onclick="removeFavorite('${recipeId}')" class="remove-favorite" title="Retirer des favoris">❌</button>
-                                    <button onclick="openRecipeModal('${recipeId}')" class="view-recipe" title="Voir la recette">👀</button>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-                <div class="favorites-stats">
-                    <div class="stat-card">
-                        <span class="stat-number">${favoriteRecipes.length}</span>
-                        <span class="stat-label">Recettes sauvées</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-number">${currentUser.stats.recipesCooked}</span>
-                        <span class="stat-label">Recettes cuisinées</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-number">${currentUser.stats.gaspiSaved}kg</span>
-                        <span class="stat-label">Gaspillage évité</span>
-                    </div>
-                </div>
+    // Vérifier si la recette n'est pas déjà dans les favoris
+    if (!favorites.some(fav => fav.id === recipe.id)) {
+        const recipeToSave = {
+            id: recipe.id,
+            name: recipe.name,
+            image: recipe.image,
+            category: recipe.category,
+            difficulty: recipe.difficulty,
+            time: recipe.time,
+            servings: recipe.servings,
+            description: recipe.description,
+            dateAdded: new Date().toISOString()
+        };
+        favorites.push(recipeToSave);
+        saveFavorites(favorites);
+        console.log('✅ Recette ajoutée aux favoris:', recipe.name, '(Total:', favorites.length, ')');
+        return true;
+    }
+    return false;
+}
+
+// Supprimer une recette des favoris
+function removeFromFavorites(recipeId) {
+    const favorites = getFavorites();
+    const updatedFavorites = favorites.filter(fav => fav.id !== recipeId);
+    saveFavorites(updatedFavorites);
+    console.log('❌ Recette supprimée des favoris:', recipeId);
+    return true;
+}
+
+// Toggle favori (ajouter/supprimer)
+function toggleFavorite(event, recipeId) {
+    event.stopPropagation(); // Empêcher l'ouverture de la modal
+    console.log('🔄 Toggle favori pour recette:', recipeId);
+    
+    // Chercher la recette dans les données actuelles
+    const recipeCard = event.target.closest('.recipe-card');
+    const recipe = getRecipeFromCard(recipeCard, recipeId);
+    
+    console.log('📦 Recette extraite:', recipe);
+    
+    if (isRecipeInFavorites(recipeId)) {
+        console.log('❌ Suppression du favori');
+        removeFromFavorites(recipeId);
+        updateFavoriteButton(event.target, false);
+        showNotification('Recette supprimée des favoris', 'info');
+    } else {
+        console.log('✅ Ajout aux favoris');
+        if (recipe) {
+            addToFavorites(recipe);
+            updateFavoriteButton(event.target, true);
+            showNotification('Recette ajoutée aux favoris', 'success');
+        } else {
+            console.error('❌ Impossible d\'extraire les données de la recette');
+            showNotification('Erreur lors de l\'ajout aux favoris', 'error');
+        }
+    }
+    
+    // Mettre à jour l'affichage des favoris si on est sur cette section
+    const currentSection = document.querySelector('.nav-link.active')?.getAttribute('data-section');
+    if (currentSection === 'favorites') {
+        displayFavorites();
+    }
+}
+
+// Extraire les données de la recette depuis la carte
+function getRecipeFromCard(card, recipeId) {
+    if (!card) {
+        console.warn('⚠️ Aucune carte trouvée pour l\'ID:', recipeId);
+        return null;
+    }
+    
+    console.log('🔍 Extraction des données de la carte:', card);
+    
+    const title = card.querySelector('.recipe-title');
+    const image = card.querySelector('.recipe-image img');
+    const description = card.querySelector('.recipe-description');
+    const time = card.querySelector('.recipe-time');
+    const difficulty = card.querySelector('.recipe-difficulty');
+    const servings = card.querySelector('.recipe-servings');
+    const category = card.querySelector('.recipe-category');
+    
+    const recipe = {
+        id: recipeId,
+        name: title?.textContent?.trim().replace(/🌍.*$/, '').trim() || 'Recette sans nom',
+        image: image?.src || '',
+        description: description?.textContent?.trim() || '',
+        time: time?.textContent?.trim().replace(/.*🕒\s*/, '').replace(/.*⏰\s*/, '') || '30 min',
+        difficulty: difficulty?.textContent?.trim().replace(/.*🔥\s*/, '') || 'Moyen',
+        servings: servings?.textContent?.trim().replace(/.*👥\s*/, '').replace(/.*🍽️\s*/, '') || '4',
+        category: category?.textContent?.trim() || 'plats'
+    };
+    
+    console.log('📦 Recette extraite:', recipe);
+    return recipe;
+}
+
+// Mettre à jour l'apparence du bouton favori
+function updateFavoriteButton(button, isFavorite) {
+    if (isFavorite) {
+        button.classList.add('active');
+        button.innerHTML = '❤️';
+        button.title = 'Supprimer des favoris';
+    } else {
+        button.classList.remove('active');
+        button.innerHTML = '🤍';
+        button.title = 'Ajouter aux favoris';
+    }
+}
+
+// Afficher une notification
+function showNotification(message, type = 'info') {
+    // Créer la notification
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <span class="notification-message">${message}</span>
+        <button class="notification-close">×</button>
+    `;
+    
+    // Ajouter au DOM
+    document.body.appendChild(notification);
+    
+    // Animation d'entrée
+    setTimeout(() => notification.classList.add('show'), 10);
+    
+    // Supprimer automatiquement après 3 secondes
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+    
+    // Bouton de fermeture
+    notification.querySelector('.notification-close').addEventListener('click', () => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    });
+}
+
+function displayFavorites() {
+    console.log('❤️ Affichage des favoris - DÉBUT');
+    
+    // Récupérer les favoris depuis localStorage
+    const favorites = getFavorites();
+    console.log('📦 Favoris récupérés:', favorites);
+    console.log('🔢 Nombre de favoris:', favorites.length);
+    
+    // Utiliser la section favoris existante dans le HTML
+    const favoritesSection = document.getElementById('favorites-section');
+    const favoritesContent = document.getElementById('favorites-content');
+    
+    console.log('📄 Section favoris trouvée:', !!favoritesSection);
+    console.log('� Container favoris trouvé:', !!favoritesContent);
+    
+    if (!favoritesSection || !favoritesContent) {
+        console.error('❌ Section ou container favoris introuvable dans le HTML');
+        return;
+    }
+
+    // Mettre à jour le titre avec le nombre de favoris
+    const favoritesTitle = favoritesSection.querySelector('.favorites-title');
+    const favoritesSubtitle = favoritesSection.querySelector('.favorites-subtitle');
+    
+    if (favoritesTitle) {
+        favoritesTitle.textContent = '❤️ Mes Recettes Favorites';
+    }
+    
+    if (favoritesSubtitle) {
+        if (favorites.length === 0) {
+            favoritesSubtitle.textContent = 'Aucune recette favorite pour le moment';
+        } else {
+            favoritesSubtitle.textContent = `${favorites.length} recette${favorites.length > 1 ? 's' : ''} sauvegardée${favorites.length > 1 ? 's' : ''}`;
+        }
+    }    if (favorites.length === 0) {
+        // Affichage quand aucun favori
+        favoritesContent.innerHTML = `
+            <div class="empty-favorites">
+                <div class="empty-favorites-icon">💔</div>
+                <h3>Votre liste de favoris est vide</h3>
+                <p>Explorez nos recettes et cliquez sur le cœur pour les sauvegarder ici !</p>
+                <button class="btn btn-primary" onclick="switchSection('home')">
+                    🏠 Découvrir des recettes
+                </button>
             </div>
         `;
+    } else {
+        // Affichage avec les favoris
+        favoritesContent.innerHTML = `
+            <div class="favorites-grid recipes-grid">
+                ${favorites.map(recipe => renderRecipeCardStandard(recipe)).join('')}
+            </div>
+        `;
+        
+        // Ajouter animations
+        setTimeout(() => {
+            favoritesContent.querySelectorAll('.recipe-card').forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.1}s`;
+                card.classList.add('fade-in');
+            });
+        }, 50);
     }
+    
+    console.log('✅ Favoris affichés avec succès');
 }
 
 // Afficher un message pour encourager la connexion
 function showFavoritesPrompt() {
-    const favoritesContainer = document.getElementById('favorites-content') || 
-                               document.querySelector('[data-section="favorites"]')?.parentElement?.querySelector('.content-section');
-    
-    if (favoritesContainer) {
-        favoritesContainer.innerHTML = `
-            <div class="auth-prompt">
-                <div class="prompt-icon">❤️</div>
-                <h3>Sauvegardez vos recettes favorites !</h3>
-                <p>Connectez-vous pour pouvoir sauvegarder vos recettes préférées et les retrouver facilement.</p>
-                <div class="prompt-actions">
-                    <button class="btn btn-primary" onclick="authManager.openModal('login')">
-                        Se connecter
-                    </button>
-                    <button class="btn btn-outline" onclick="authManager.openModal('register')">
-                        S'inscrire
-                    </button>
-                </div>
-            </div>
-        `;
-    }
+    console.log('🔒 Affichage du prompt de connexion pour les favoris');
 }
 
 // Afficher un message quand il n'y a pas de favoris
 function showEmptyFavorites() {
-    const favoritesContainer = document.getElementById('favorites-content') || 
-                               document.querySelector('[data-section="favorites"]')?.parentElement?.querySelector('.content-section');
-    
-    if (favoritesContainer) {
-        favoritesContainer.innerHTML = `
-            <div class="empty-favorites">
-                <div class="empty-icon">🍽️</div>
-                <h3>Aucune recette favorite pour l'instant</h3>
-                <p>Explorez nos recettes et cliquez sur 🤍 pour les ajouter à vos favoris !</p>
-                <button class="btn btn-primary" onclick="switchSection('home')">
-                    Découvrir des recettes
-                </button>
-            </div>
-        `;
-    }
+    console.log('📭 Aucun favori à afficher');
 }
 
-// Retirer une recette des favoris depuis la page favoris
-function removeFavorite(recipeId) {
-    if (authManager?.removeFromFavorites(recipeId)) {
-        // Actualiser l'affichage des favoris
-        displayFavorites();
-    }
-}
+// Rendre les fonctions de favoris accessibles globalement
+window.toggleFavorite = toggleFavorite;
+window.isRecipeInFavorites = isRecipeInFavorites;
+window.addToFavorites = addToFavorites;
+window.removeFromFavorites = removeFromFavorites;
+window.getFavorites = getFavorites;
+window.displayFavorites = displayFavorites;
+window.switchSection = switchSection;
 
 // ========================================
 // FONCTIONS D'INITIALISATION
@@ -1276,12 +1369,6 @@ function handleSectionChange(sectionName) {
         case 'favorites':
             // Afficher les recettes favorites
             displayFavorites();
-            break;
-        case 'shopping':
-            // TODO: Implémenter la liste de courses
-            break;
-        case 'quick':
-            // TODO: Implémenter les recettes rapides
             break;
         case 'anti-gaspi':
             // TODO: Implémenter l'anti-gaspi
@@ -1955,93 +2042,682 @@ class TranslationAI {
         return scores[detectedLang] > 0 ? detectedLang : 'anglais'; // Défaut anglais pour l'API
     }
     
-    // IA de traduction intelligente basée sur le contexte
+    // IA de traduction intelligente avec API MyMemory Translation
     async translateWithAI(text, targetLanguage, sourceLanguage = null) {
-        if (!text || !targetLanguage) return text;
+        console.log(`🔄 translateWithAI - text: "${text.substring(0, 100)}..."`);
+        console.log(`🔄 translateWithAI - targetLanguage: "${targetLanguage}"`);
+        console.log(`🔄 translateWithAI - sourceLanguage: "${sourceLanguage}"`);
+        
+        if (!text || !targetLanguage) {
+            console.warn(`⚠️ translateWithAI - Paramètres manquants`);
+            return text;
+        }
         
         // Détecter automatiquement la langue source si non spécifiée
         if (!sourceLanguage) {
             sourceLanguage = this.detectLanguage(text);
+            console.log(`🔍 Langue source détectée: "${sourceLanguage}"`);
         }
         
         // Si même langue, pas de traduction nécessaire
         if (sourceLanguage === targetLanguage) {
+            console.log(`⏭️ Même langue source et cible, pas de traduction nécessaire`);
             return text;
         }
         
         // Vérifier le cache
         const cacheKey = `${sourceLanguage}_${targetLanguage}_${text.substring(0, 50)}`;
         if (this.translations.has(cacheKey)) {
+            console.log(`📦 Utilisation du cache pour la traduction`);
             return this.translations.get(cacheKey);
         }
         
-        // IA de traduction contextuelle pour la cuisine
-        const translatedText = await this.performContextualTranslation(text, sourceLanguage, targetLanguage);
+        console.log(`🌐 Appel API MyMemory pour traduction...`);
         
-        // Mettre en cache
-        this.translations.set(cacheKey, translatedText);
+        try {
+            // Utiliser l'API MyMemory Translation pour une traduction professionnelle
+            const translatedText = await this.translateWithMyMemory(text, sourceLanguage, targetLanguage);
+            
+            // Mettre en cache
+            this.translations.set(cacheKey, translatedText);
+            return translatedText;
+            
+        } catch (error) {
+            console.warn('🔄 Erreur API MyMemory, utilisation traduction locale:', error);
+            // Fallback vers traduction locale en cas d'erreur API
+            const fallbackText = await this.performContextualTranslation(text, sourceLanguage, targetLanguage);
+            this.translations.set(cacheKey, fallbackText);
+            return fallbackText;
+        }
+    }
+    
+    // Traduction via API MyMemory Translation (gratuite)
+    async translateWithMyMemory(text, sourceLang, targetLang) {
+        console.log(`🌍 MyMemory API: ${sourceLang} → ${targetLang}, texte: "${text.substring(0, 50)}..."`);
+        
+        // Convertir les noms de langues vers codes ISO
+        const langCodes = {
+            'anglais': 'en',
+            'français': 'fr', 
+            'espagnol': 'es',
+            'italien': 'it',
+            'allemand': 'de',
+            'portugais': 'pt',
+            'russe': 'ru',
+            'chinois': 'zh',
+            'japonais': 'ja',
+            'coréen': 'ko',
+            'arabe': 'ar',
+            'hindi': 'hi',
+            'néerlandais': 'nl',
+            'suédois': 'sv',
+            'norvégien': 'no'
+        };
+        
+        const sourceCode = langCodes[sourceLang] || 'en';
+        const targetCode = langCodes[targetLang] || 'fr';
+        
+        console.log(`🔄 Codes langue: ${sourceCode} → ${targetCode}`);
+        
+        // Nettoyer et préparer le texte pour la traduction
+        const cleanText = this.prepareTextForTranslation(text);
+        
+        // Diviser en chunks si le texte est trop long (max 500 caractères par requête)
+        const chunks = this.splitTextIntoChunks(cleanText, 500);
+        const translatedChunks = [];
+        
+        console.log(`📝 ${chunks.length} chunks à traduire`);
+        
+        for (const chunk of chunks) {
+            if (!chunk.trim()) {
+                translatedChunks.push(chunk);
+                continue;
+            }
+            
+            // URL MyMemory API (gratuite jusqu'à 5000 mots/jour)
+            const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=${sourceCode}|${targetCode}`;
+            
+            try {
+                console.log(`🔄 API call: ${apiUrl}`);
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log(`🔍 API response détaillée:`, data);
+                
+                // Vérifier les différents codes d'erreur MyMemory
+                if (data.responseStatus === 403) {
+                    throw new Error('QUOTA_EXCEEDED');
+                } else if (data.responseStatus === 429) {
+                    throw new Error('RATE_LIMITED');
+                } else if (data.responseStatus === 200 && data.responseData) {
+                    translatedChunks.push(data.responseData.translatedText);
+                    console.log(`✅ Traduit: "${chunk}" → "${data.responseData.translatedText}"`);
+                } else {
+                    console.warn(`⚠️ API Status: ${data.responseStatus}`, data.responseDetails);
+                    throw new Error(`API_ERROR: ${data.responseDetails || data.responseStatus || 'Unknown error'}`);
+                }
+                
+                // Petite pause pour éviter de surcharger l'API gratuite
+                if (chunks.length > 1) {
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+                
+            } catch (error) {
+                console.warn(`🔄 Erreur traduction chunk: ${chunk.substring(0, 50)}...`, error);
+                
+                // Gestion spécifique des erreurs de quota
+                if (error.message === 'QUOTA_EXCEEDED') {
+                    console.error(`❌ QUOTA MyMemory DÉPASSÉ ! Utilisation du fallback...`);
+                    // Montrer une notification à l'utilisateur
+                    if (window.showNotification) {
+                        showNotification('Limite de traduction atteinte. Utilisation du dictionnaire de base.', 'warning');
+                    }
+                    // Utiliser le dictionnaire de base comme fallback
+                    const fallbackTranslation = this.translateWithDictionary(chunk, targetCode);
+                    translatedChunks.push(fallbackTranslation);
+                } else if (error.message === 'RATE_LIMITED') {
+                    console.warn(`⚠️ Limite de taux atteinte, attente plus longue...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    // Retry une fois
+                    try {
+                        const retryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=${sourceCode}|${targetCode}`;
+                        const retryResponse = await fetch(retryUrl);
+                        const retryData = await retryResponse.json();
+                        if (retryData.responseStatus === 200) {
+                            translatedChunks.push(retryData.responseData.translatedText);
+                        } else {
+                            translatedChunks.push(chunk);
+                        }
+                    } catch {
+                        translatedChunks.push(chunk);
+                    }
+                } else {
+                    // En cas d'erreur générique, garder le texte original
+                    translatedChunks.push(chunk);
+                }
+            }
+        }
+        
+        const result = translatedChunks.join(' ');
+        console.log(`✅ Résultat final: "${result.substring(0, 100)}..."`);
+        return result;
+    }
+    
+    // Traduction de fallback avec dictionnaire de base (quand API quota dépassé)
+    translateWithDictionary(text, targetLang = 'fr') {
+        console.log(`📚 Utilisation dictionnaire fallback pour: "${text.substring(0, 50)}..."`);
+        
+        // Dictionnaire de base pour les termes culinaires les plus courants
+        const basicDictionary = {
+            // Ingrédients communs
+            'chicken': 'poulet', 'beef': 'bœuf', 'pork': 'porc', 'fish': 'poisson',
+            'rice': 'riz', 'pasta': 'pâtes', 'bread': 'pain', 'eggs': 'œufs',
+            'milk': 'lait', 'cheese': 'fromage', 'butter': 'beurre', 'oil': 'huile',
+            'salt': 'sel', 'pepper': 'poivre', 'sugar': 'sucre', 'flour': 'farine',
+            'onion': 'oignon', 'garlic': 'ail', 'tomato': 'tomate', 'potato': 'pomme de terre',
+            'carrot': 'carotte', 'mushroom': 'champignon', 'spinach': 'épinard',
+            
+            // Verbes culinaires
+            'cook': 'cuire', 'bake': 'cuire au four', 'fry': 'frire', 'boil': 'bouillir',
+            'grill': 'griller', 'roast': 'rôtir', 'steam': 'cuire à la vapeur',
+            'mix': 'mélanger', 'stir': 'remuer', 'chop': 'hacher', 'slice': 'trancher',
+            'add': 'ajouter', 'heat': 'chauffer', 'serve': 'servir',
+            
+            // Temps et mesures
+            'minute': 'minute', 'minutes': 'minutes', 'hour': 'heure', 'hours': 'heures',
+            'cup': 'tasse', 'cups': 'tasses', 'tablespoon': 'cuillère à soupe',
+            'teaspoon': 'cuillère à café', 'pound': 'livre', 'ounce': 'once',
+            
+            // Termes généraux
+            'recipe': 'recette', 'ingredients': 'ingrédients', 'instructions': 'instructions',
+            'preparation': 'préparation', 'cooking': 'cuisson', 'easy': 'facile',
+            'delicious': 'délicieux', 'tasty': 'savoureux', 'fresh': 'frais',
+            'hot': 'chaud', 'cold': 'froid', 'sweet': 'sucré', 'spicy': 'épicé'
+        };
+        
+        let translatedText = text.toLowerCase();
+        
+        // Remplacer les termes connus
+        Object.keys(basicDictionary).forEach(english => {
+            const french = basicDictionary[english];
+            // Remplacer les mots entiers seulement
+            const regex = new RegExp(`\\b${english}\\b`, 'gi');
+            translatedText = translatedText.replace(regex, french);
+        });
+        
+        console.log(`📚 Résultat dictionnaire: "${translatedText.substring(0, 50)}..."`);
         return translatedText;
+    }
+    prepareTextForTranslation(text) {
+        // Nettoyer le texte tout en préservant la structure
+        return text
+            .replace(/\s+/g, ' ')        // Normaliser les espaces
+            .replace(/\n{3,}/g, '\n\n')   // Limiter les sauts de ligne
+            .trim();
+    }
+    
+    // Diviser le texte en chunks pour l'API
+    splitTextIntoChunks(text, maxLength) {
+        if (text.length <= maxLength) {
+            return [text];
+        }
+        
+        const chunks = [];
+        const sentences = text.split(/([.!?]+\s*)/);
+        let currentChunk = '';
+        
+        for (let i = 0; i < sentences.length; i += 2) {
+            const sentence = sentences[i] + (sentences[i + 1] || '');
+            
+            if ((currentChunk + sentence).length <= maxLength) {
+                currentChunk += sentence;
+            } else {
+                if (currentChunk) {
+                    chunks.push(currentChunk.trim());
+                    currentChunk = sentence;
+                } else {
+                    // Si une phrase est trop longue, la couper par mots
+                    const words = sentence.split(' ');
+                    let wordChunk = '';
+                    
+                    for (const word of words) {
+                        if ((wordChunk + ' ' + word).length <= maxLength) {
+                            wordChunk += (wordChunk ? ' ' : '') + word;
+                        } else {
+                            if (wordChunk) chunks.push(wordChunk);
+                            wordChunk = word;
+                        }
+                    }
+                    if (wordChunk) currentChunk = wordChunk;
+                }
+            }
+        }
+        
+        if (currentChunk.trim()) {
+            chunks.push(currentChunk.trim());
+        }
+        
+        return chunks;
     }
     
     // Traduction contextuelle intelligente
     async performContextualTranslation(text, sourceLang, targetLang) {
-        // Système d'IA basé sur les patterns culinaires
-        const translationRules = {
+        // Système d'IA basé sur la traduction de phrases complètes
+        const sentenceTranslations = {
             'anglais_français': {
-                // Verbes d'action
-                'mix': 'mélanger', 'stir': 'remuer', 'cook': 'cuire', 'fry': 'faire frire',
-                'bake': 'cuire au four', 'boil': 'faire bouillir', 'simmer': 'faire mijoter',
-                'chop': 'hacher', 'slice': 'trancher', 'dice': 'couper en dés',
-                'season': 'assaisonner', 'add': 'ajouter', 'heat': 'chauffer',
-                'serve': 'servir', 'garnish': 'garnir', 'combine': 'combiner',
-                
-                // Ingrédients
-                'chicken': 'poulet', 'beef': 'bœuf', 'pork': 'porc', 'fish': 'poisson',
-                'tomato': 'tomate', 'onion': 'oignon', 'garlic': 'ail',
-                'potato': 'pomme de terre', 'carrot': 'carotte', 'pepper': 'poivron',
-                'salt': 'sel', 'pepper': 'poivre', 'oil': 'huile', 'butter': 'beurre',
-                'cheese': 'fromage', 'milk': 'lait', 'egg': 'œuf', 'bread': 'pain',
-                'rice': 'riz', 'pasta': 'pâtes', 'flour': 'farine',
-                
-                // Mesures
-                'cup': 'tasse', 'tablespoon': 'cuillère à soupe', 'teaspoon': 'cuillère à café',
-                'ounce': 'once', 'pound': 'livre', 'gram': 'gramme', 'liter': 'litre',
-                'pinch': 'pincée', 'dash': 'trait',
-                
-                // Adjectifs
-                'fresh': 'frais', 'dried': 'séché', 'chopped': 'haché', 'sliced': 'tranché',
-                'minced': 'émincé', 'grated': 'râpé', 'hot': 'chaud', 'cold': 'froid',
-                'large': 'gros', 'small': 'petit', 'medium': 'moyen',
-                
-                // Phrases courantes
-                'preheat oven': 'préchauffer le four',
-                'heat oil': 'chauffer l\'huile',
-                'mix well': 'bien mélanger',
+                // Instructions complètes de cuisine
+                'preheat the oven to': 'préchauffer le four à',
+                'preheat oven to': 'préchauffer le four à',
+                'heat the oil in a large pan': 'chauffer l\'huile dans une grande poêle',
+                'heat oil in a pan': 'chauffer l\'huile dans une poêle',
+                'season with salt and pepper': 'assaisonner avec du sel et du poivre',
+                'season to taste with salt and pepper': 'assaisonner selon le goût avec du sel et du poivre',
                 'season to taste': 'assaisonner selon le goût',
+                'mix well until combined': 'bien mélanger jusqu\'à obtenir un mélange homogène',
+                'mix well': 'bien mélanger',
+                'stir well': 'bien remuer',
+                'let cool completely': 'laisser refroidir complètement',
+                'let cool for': 'laisser refroidir pendant',
+                'let cool': 'laisser refroidir',
                 'serve hot': 'servir chaud',
-                'let cool': 'laisser refroidir'
+                'serve immediately': 'servir immédiatement',
+                'serve warm': 'servir tiède',
+                'cook until tender': 'cuire jusqu\'à ce que ce soit tendre',
+                'cook until golden brown': 'cuire jusqu\'à ce que ce soit doré',
+                'cook until golden': 'cuire jusqu\'à ce que ce soit doré',
+                'bring to a boil': 'porter à ébullition',
+                'reduce heat to low': 'réduire le feu au minimum',
+                'reduce heat': 'réduire le feu',
+                'simmer for': 'laisser mijoter pendant',
+                'add the chopped': 'ajouter les',
+                'add the': 'ajouter le/la/les',
+                'remove from heat': 'retirer du feu',
+                'drain and serve': 'égoutter et servir',
+                'cut into pieces': 'couper en morceaux',
+                'cut into small pieces': 'couper en petits morceaux',
+                'chop finely': 'hacher finement',
+                'slice thinly': 'trancher finement',
+                'dice into small cubes': 'couper en petits dés',
+                'wash and dry': 'laver et sécher',
+                'peel and chop': 'éplucher et hacher',
+                'boil until tender': 'faire bouillir jusqu\'à ce que ce soit tendre',
+                'fry until crispy': 'faire frire jusqu\'à ce que ce soit croustillant',
+                'bake until golden': 'cuire au four jusqu\'à ce que ce soit doré',
+                'cover and simmer': 'couvrir et laisser mijoter',
+                'stir occasionally': 'remuer de temps en temps',
+                'cook over medium heat': 'cuire à feu moyen',
+                'cook over high heat': 'cuire à feu vif',
+                'cook over low heat': 'cuire à feu doux',
+                
+                // Phrases spécifiques aux exemples de Kumpir
+                'if you order kumpir in turkey': 'si vous commandez du kumpir en Turquie',
+                'the standard filling is first': 'la garniture standard est d\'abord',
+                'lots of butter mashed into the potato': 'beaucoup de beurre écrasé dans la pomme de terre',
+                'followed by cheese': 'suivi de fromage',
+                'there\'s then a row of other': 'il y a ensuite une rangée d\'autres',
+                'grate roughly': 'râper grossièrement',
+                'you can use as much as you like': 'vous pouvez en utiliser autant que vous voulez',
+                'finely chop one onion': 'hacher finement un oignon',
+                'one sweet red pepper': 'un poivron rouge sucré',
+                'put these ingredients into a large bowl': 'mettre ces ingrédients dans un grand bol',
+                'with a good sprinkling of': 'avec un bon saupoudrage de',
+                'salt and pepper': 'sel et poivre',
+                'chilli flakes optional': 'flocons de piment optionnels',
+                
+                // Noms de plats courants avec descriptions
+                'chicken breast fillet': 'filet de blanc de poulet',
+                'chicken breast': 'blanc de poulet',
+                'chicken thighs': 'cuisses de poulet',
+                'boneless chicken': 'poulet désossé',
+                'beef stew meat': 'viande de bœuf pour ragoût',
+                'ground beef': 'bœuf haché',
+                'beef stew': 'ragoût de bœuf',
+                'fish fillet': 'filet de poisson',
+                'white fish': 'poisson blanc',
+                'pork chop': 'côtelette de porc',
+                'ground pork': 'porc haché',
+                'lamb chop': 'côtelette d\'agneau',
+                'vegetable soup': 'soupe de légumes',
+                'tomato soup': 'soupe à la tomate',
+                'chicken soup': 'soupe de poulet',
+                'tomato sauce': 'sauce tomate',
+                'cheese sauce': 'sauce au fromage',
+                'white sauce': 'sauce blanche',
+                'cream sauce': 'sauce à la crème',
+                'chocolate cake': 'gâteau au chocolat',
+                'vanilla cake': 'gâteau à la vanille',
+                'apple pie': 'tarte aux pommes',
+                'lemon pie': 'tarte au citron',
+                'green salad': 'salade verte',
+                'caesar salad': 'salade césar',
+                'pasta salad': 'salade de pâtes',
+                'potato salad': 'salade de pommes de terre',
+                'fruit salad': 'salade de fruits',
+                
+                // Descriptions culinaires complexes
+                'fresh and delicious recipe': 'recette fraîche et délicieuse',
+                'crispy and golden brown': 'croustillant et doré',
+                'tender and juicy': 'tendre et juteux',
+                'rich and creamy sauce': 'sauce riche et crémeuse',
+                'light and fluffy': 'léger et moelleux',
+                'sweet and sour': 'aigre-doux',
+                'spicy and flavorful': 'épicé et savoureux',
+                'healthy and nutritious': 'sain et nutritif',
+                'easy to make': 'facile à faire',
+                'perfect for dinner': 'parfait pour le dîner',
+                'great for lunch': 'idéal pour le déjeuner',
+                'ideal for breakfast': 'idéal pour le petit-déjeuner'
             }
         };
         
-        // Appliquer les règles de traduction intelligente
+        // Appliquer les traductions de phrases complètes en premier
         let translated = text.toLowerCase();
         const ruleKey = `${sourceLang}_${targetLang}`;
         
-        if (translationRules[ruleKey]) {
-            const rules = translationRules[ruleKey];
+        if (sentenceTranslations[ruleKey]) {
+            const sentenceRules = sentenceTranslations[ruleKey];
             
-            // Appliquer chaque règle avec regex pour les mots complets
-            Object.entries(rules).forEach(([source, target]) => {
-                const regex = new RegExp(`\\b${source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-                translated = translated.replace(regex, target);
+            // Trier par longueur décroissante pour traiter les phrases longues en premier
+            const sortedPhrases = Object.keys(sentenceRules).sort((a, b) => b.length - a.length);
+            
+            sortedPhrases.forEach(sourcePhrase => {
+                const targetPhrase = sentenceRules[sourcePhrase];
+                // Utiliser une regex plus précise pour les phrases
+                const regex = new RegExp(sourcePhrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                translated = translated.replace(regex, targetPhrase);
             });
         }
         
-        // IA générative pour les termes non couverts
-        translated = await this.generateMissingTranslations(translated, targetLang);
+        // Si la traduction de phrase complète n'a pas tout couvert, essayer la traduction intelligente
+        translated = await this.intelligentSentenceTranslation(translated, sourceLang, targetLang);
         
-        // Capitaliser correctement
         return this.capitalizeTranslation(translated, text);
+    }
+    
+    // Traduction intelligente de phrases par analyse sémantique
+    async intelligentSentenceTranslation(text, sourceLang, targetLang) {
+        if (sourceLang === 'anglais' && targetLang === 'français') {
+            return this.translateEnglishToFrenchSentence(text);
+        }
+        
+        if (sourceLang === 'anglais' && targetLang === 'espagnol') {
+            return this.translateEnglishToSpanish(text);
+        }
+        
+        if (sourceLang === 'anglais' && targetLang === 'italien') {
+            return this.translateEnglishToItalian(text);
+        }
+        
+        // Pour d'autres langues, retourner le texte tel quel
+        return text;
+    }
+    
+    // Traduction spécialisée anglais vers français par blocs sémantiques
+    translateEnglishToFrenchSentence(englishText) {
+        let text = englishText.toLowerCase().trim();
+        
+        // Patterns de recettes complexes avec capture de groupes
+        const recipePatterns = [
+            // Patterns spécifiques pour Kumpir et exemples complexes
+            {
+                pattern: /grate\s*\(\s*roughly\s*[–-]\s*you\s+can\s+use\s+as\s+much\s+as\s+you\s+like\s*\)\s*(\d+g?)\s+of\s+(.+)/gi,
+                replacement: 'râper (grossièrement – vous pouvez en utiliser autant que vous voulez) $1 de $2'
+            },
+            {
+                pattern: /finely\s+hacher\s+one\s+(.+?)\s+et\s+one\s+(.+?)\s+(.+)/gi,
+                replacement: 'hacher finement un $1 et un $2 $3'
+            },
+            {
+                pattern: /put\s+these\s+ingredients\s+into\s+a\s+(.+?)\s+(.+?)\s+avec\s+a\s+(.+?)\s+sprinkling\s+of\s+(.+)/gi,
+                replacement: 'mettre ces ingrédients dans un $2 $1 avec un $3 saupoudrage de $4'
+            },
+            
+            // Instructions de cuisson avec temps et températures
+            {
+                pattern: /cook (?:the\s+)?(.+?) for (\d+(?:-\d+)?) minutes/gi,
+                replacement: 'cuire $1 pendant $2 minutes'
+            },
+            {
+                pattern: /bake (?:the\s+)?(.+?) for (\d+(?:-\d+)?) minutes at (\d+)/gi,
+                replacement: 'cuire $1 au four pendant $2 minutes à $3°C'
+            },
+            {
+                pattern: /simmer (?:the\s+)?(.+?) for (\d+(?:-\d+)?) minutes/gi,
+                replacement: 'laisser mijoter $1 pendant $2 minutes'
+            },
+            {
+                pattern: /roast (?:the\s+)?(.+?) for (\d+) minutes/gi,
+                replacement: 'rôtir $1 pendant $2 minutes'
+            },
+            
+            // Instructions avec ingrédients
+            {
+                pattern: /add (?:the\s+)?(.+?) to (?:the\s+)?(.+)/gi,
+                replacement: 'ajouter $1 à $2'
+            },
+            {
+                pattern: /mix (?:the\s+)?(.+?) with (?:the\s+)?(.+)/gi,
+                replacement: 'mélanger $1 avec $2'
+            },
+            {
+                pattern: /combine (?:the\s+)?(.+?) and (?:the\s+)?(.+)/gi,
+                replacement: 'combiner $1 et $2'
+            },
+            {
+                pattern: /blend (?:the\s+)?(.+?) with (?:the\s+)?(.+)/gi,
+                replacement: 'mélanger $1 avec $2'
+            },
+            
+            // Préparations d'ingrédients
+            {
+                pattern: /chop (?:the\s+)?(.+?) into (.+)/gi,
+                replacement: 'hacher $1 en $2'
+            },
+            {
+                pattern: /slice (?:the\s+)?(.+?) thinly/gi,
+                replacement: 'trancher finement $1'
+            },
+            {
+                pattern: /dice (?:the\s+)?(.+?) into (.+)/gi,
+                replacement: 'couper $1 en $2'
+            },
+            {
+                pattern: /cut (?:the\s+)?(.+?) into (.+)/gi,
+                replacement: 'couper $1 en $2'
+            },
+            
+            // États et résultats
+            {
+                pattern: /until (?:the\s+)?(.+?) (?:is\s+|are\s+)?(.+)/gi,
+                replacement: 'jusqu\'à ce que $1 soit $2'
+            },
+            {
+                pattern: /(?:the\s+)?(.+?) (?:is\s+|are\s+)ready/gi,
+                replacement: '$1 est prêt'
+            },
+            {
+                pattern: /when (?:the\s+)?(.+?) (?:is\s+|are\s+)(.+)/gi,
+                replacement: 'quand $1 est $2'
+            }
+        ];
+        
+        // Appliquer les patterns de recettes
+        recipePatterns.forEach(({ pattern, replacement }) => {
+            text = text.replace(pattern, replacement);
+        });
+        
+        // Traductions de mots individuels pour les termes non couverts
+        const wordTranslations = {
+            // Ingrédients de base
+            'chicken': 'poulet', 'beef': 'bœuf', 'pork': 'porc', 'fish': 'poisson',
+            'tomato': 'tomate', 'tomatoes': 'tomates',
+            'onion': 'oignon', 'onions': 'oignons',
+            'garlic': 'ail', 'garlics': 'ails',
+            'potato': 'pomme de terre', 'potatoes': 'pommes de terre',
+            'carrot': 'carotte', 'carrots': 'carottes',
+            'pepper': 'poivron', 'peppers': 'poivrons',
+            'cheese': 'fromage', 'butter': 'beurre', 'oil': 'huile',
+            'salt': 'sel', 'sugar': 'sucre', 'flour': 'farine',
+            'egg': 'œuf', 'eggs': 'œufs', 'milk': 'lait',
+            'rice': 'riz', 'pasta': 'pâtes', 'bread': 'pain',
+            'mushroom': 'champignon', 'mushrooms': 'champignons',
+            'kumpir': 'pomme de terre farcie turque', 'turkey': 'Turquie',
+            'filling': 'garniture', 'standard': 'standard',
+            'first': 'd\'abord', 'lots': 'beaucoup', 'mashed': 'écrasé',
+            'followed': 'suivi', 'row': 'rangée', 'other': 'autres',
+            'roughly': 'grossièrement', 'use': 'utiliser', 'much': 'autant',
+            'like': 'comme', 'finely': 'finement', 'sweet': 'sucré',
+            'red': 'rouge', 'put': 'mettre', 'these': 'ces',
+            'ingredients': 'ingrédients', 'into': 'dans', 'good': 'bon',
+            'sprinkling': 'saupoudrage', 'chilli': 'piment', 'flakes': 'flocons',
+            'optional': 'optionnel', 'grate': 'râper', 'you': 'vous',
+            'can': 'pouvez', 'order': 'commandez', 'if': 'si', 'the': 'le/la/les',
+            'is': 'est', 'of': 'de', 'one': 'un/une', 'as': 'comme',
+            'there': 'il y a', 'a': 'un/une', 'et': 'et',
+            
+            // Verbes de cuisine
+            'cook': 'cuire', 'bake': 'cuire au four', 'fry': 'faire frire',
+            'boil': 'bouillir', 'simmer': 'mijoter', 'stir': 'remuer',
+            'mix': 'mélanger', 'chop': 'hacher', 'slice': 'trancher',
+            'dice': 'couper en dés', 'season': 'assaisonner',
+            'serve': 'servir', 'add': 'ajouter', 'heat': 'chauffer',
+            'roast': 'rôtir', 'grill': 'griller', 'steam': 'cuire à la vapeur',
+            'grate': 'râper', 'put': 'mettre', 'hacher': 'hacher',
+            
+            // Adjectifs culinaires
+            'fresh': 'frais', 'hot': 'chaud', 'cold': 'froid',
+            'large': 'gros', 'small': 'petit', 'medium': 'moyen',
+            'tender': 'tendre', 'crispy': 'croustillant', 'golden': 'doré',
+            'thick': 'épais', 'thin': 'fin', 'smooth': 'lisse',
+            'creamy': 'crémeux', 'spicy': 'épicé', 'sweet': 'sucré',
+            'finely': 'finement', 'roughly': 'grossièrement', 'red': 'rouge',
+            'good': 'bon', 'standard': 'standard', 'optional': 'optionnel',
+            
+            // Mots de liaison et autres
+            'and': 'et', 'or': 'ou', 'with': 'avec', 'in': 'dans',
+            'on': 'sur', 'for': 'pour', 'until': 'jusqu\'à', 'then': 'puis',
+            'minutes': 'minutes', 'hours': 'heures', 'degrees': 'degrés',
+            'tablespoon': 'cuillère à soupe', 'teaspoon': 'cuillère à café',
+            'cup': 'tasse', 'bowl': 'bol', 'pan': 'poêle', 'pot': 'casserole',
+            'into': 'dans', 'these': 'ces', 'ingredients': 'ingrédients',
+            'sprinkling': 'saupoudrage', 'flakes': 'flocons', 'chilli': 'piment',
+            'filling': 'garniture', 'followed': 'suivi', 'lots': 'beaucoup',
+            'mashed': 'écrasé', 'first': 'd\'abord', 'row': 'rangée',
+            'other': 'autres', 'you': 'vous', 'can': 'pouvez', 'use': 'utiliser',
+            'as': 'comme', 'much': 'autant', 'like': 'comme', 'if': 'si',
+            'order': 'commandez', 'there': 'il y a', 'is': 'est', 'of': 'de',
+            'one': 'un/une', 'the': 'le/la/les', 'a': 'un/une'
+        };
+        
+        // Appliquer les traductions de mots individuels seulement pour les mots non traduits
+        Object.entries(wordTranslations).forEach(([english, french]) => {
+            const regex = new RegExp(`\\b${english}\\b`, 'gi');
+            text = text.replace(regex, french);
+        });
+        
+        // Traduire automatiquement les mots anglais restants non couverts
+        text = this.translateRemainingEnglishWords(text);
+        
+        return text;
+    }
+    
+    // Traduction automatique des mots anglais restants
+    translateRemainingEnglishWords(text) {
+        // Dictionnaire de derniers recours pour les mots courants oubliés
+        const lastResortTranslations = {
+            'dans': 'dans', // déjà traduit 
+            'turkey': 'turquie', 'dans': 'dans', 'standard': 'standard',
+            'filling': 'garniture', 'followed': 'suivi', 'by': 'par',
+            'there': 'il y a', 'puis': 'puis', 'row': 'rangée',
+            'other': 'autres', 'grate': 'râper', 'much': 'autant',
+            'as': 'comme', 'you': 'vous', 'like': 'aimez', 'finely': 'finement',
+            'chop': 'hacher', 'hacher': 'hacher', 'one': 'un/une', 
+            'sweet': 'sucré', 'red': 'rouge', 'poivron': 'poivron',
+            'put': 'mettre', 'these': 'ces', 'ingredients': 'ingrédients',
+            'into': 'dans', 'large': 'grand', 'bol': 'bol', 'avec': 'avec',
+            'good': 'bon', 'sprinkling': 'saupoudrage', 'sel': 'sel',
+            'poivron': 'poivre', 'chilli': 'piment', 'flakes': 'flocons',
+            'optional': 'optionnel'
+        };
+        
+        // Appliquer ces traductions en dernier recours
+        Object.entries(lastResortTranslations).forEach(([english, french]) => {
+            const regex = new RegExp(`\\b${english}\\b`, 'gi');
+            text = text.replace(regex, french);
+        });
+        
+        return text;
+    }
+    
+    // Traduction vers l'espagnol
+    translateEnglishToSpanish(text) {
+        const spanishTranslations = {
+            // Phrases complètes
+            'season with salt and pepper': 'sazonar con sal y pimienta',
+            'cook until tender': 'cocinar hasta que esté tierno',
+            'serve hot': 'servir caliente',
+            'mix well': 'mezclar bien',
+            
+            // Mots individuels
+            'chicken': 'pollo', 'beef': 'carne de res', 'pork': 'cerdo',
+            'tomato': 'tomate', 'onion': 'cebolla', 'garlic': 'ajo',
+            'cook': 'cocinar', 'bake': 'hornear', 'fry': 'freír',
+            'mix': 'mezclar', 'season': 'sazonar', 'serve': 'servir',
+            'hot': 'caliente', 'cold': 'frío', 'fresh': 'fresco',
+            'and': 'y', 'with': 'con', 'for': 'para', 'minutes': 'minutos'
+        };
+        
+        let translated = text.toLowerCase();
+        
+        // Trier par longueur pour traiter les phrases avant les mots
+        const sortedEntries = Object.entries(spanishTranslations).sort((a, b) => b[0].length - a[0].length);
+        
+        sortedEntries.forEach(([english, spanish]) => {
+            const regex = new RegExp(english.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            translated = translated.replace(regex, spanish);
+        });
+        
+        return translated;
+    }
+    
+    // Traduction vers l'italien
+    translateEnglishToItalian(text) {
+        const italianTranslations = {
+            // Phrases complètes
+            'season with salt and pepper': 'condire con sale e pepe',
+            'cook until tender': 'cuocere fino a quando è tenero',
+            'serve hot': 'servire caldo',
+            'mix well': 'mescolare bene',
+            
+            // Mots individuels
+            'chicken': 'pollo', 'beef': 'manzo', 'pork': 'maiale',
+            'tomato': 'pomodoro', 'onion': 'cipolla', 'garlic': 'aglio',
+            'cook': 'cuocere', 'bake': 'cuocere al forno', 'fry': 'friggere',
+            'mix': 'mescolare', 'season': 'condire', 'serve': 'servire',
+            'hot': 'caldo', 'cold': 'freddo', 'fresh': 'fresco',
+            'and': 'e', 'with': 'con', 'for': 'per', 'minutes': 'minuti'
+        };
+        
+        let translated = text.toLowerCase();
+        
+        // Trier par longueur pour traiter les phrases avant les mots
+        const sortedEntries = Object.entries(italianTranslations).sort((a, b) => b[0].length - a[0].length);
+        
+        sortedEntries.forEach(([english, italian]) => {
+            const regex = new RegExp(english.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            translated = translated.replace(regex, italian);
+        });
+        
+        return translated;
     }
     
     // IA générative pour termes manquants
@@ -2072,15 +2748,24 @@ class TranslationAI {
     
     // Traduire une recette complète
     async translateRecipe(recipe, targetLanguage) {
-        if (!recipe || !targetLanguage) return recipe;
+        console.log(`🔄 DEBUG translateRecipe - recipe:`, recipe);
+        console.log(`🔄 DEBUG translateRecipe - targetLanguage:`, targetLanguage);
+        
+        if (!recipe || !targetLanguage) {
+            console.warn(`⚠️ translateRecipe - Paramètres manquants:`, { recipe: !!recipe, targetLanguage });
+            return recipe;
+        }
         
         const translatedRecipe = { ...recipe };
         const sourceLang = this.detectLanguage(recipe.name || recipe.description || '');
+        console.log(`🔍 DEBUG - Source language detected:`, sourceLang);
         
         try {
             // Traduire le nom
             if (recipe.name) {
+                console.log(`🔄 Traduction du nom: "${recipe.name}"`);
                 translatedRecipe.name = await this.translateWithAI(recipe.name, targetLanguage, sourceLang);
+                console.log(`✅ Nom traduit: "${translatedRecipe.name}"`);
                 if (sourceLang !== targetLanguage) {
                     translatedRecipe.originalName = recipe.name;
                     translatedRecipe.isTranslated = true;
@@ -2090,7 +2775,9 @@ class TranslationAI {
             
             // Traduire la description
             if (recipe.description) {
+                console.log(`🔄 Traduction de la description...`);
                 translatedRecipe.description = await this.translateWithAI(recipe.description, targetLanguage, sourceLang);
+                console.log(`✅ Description traduite`);
             }
             
             // Traduire les ingrédients
@@ -2123,29 +2810,14 @@ class TranslationAI {
     async setLanguage(language) {
         this.currentLanguage = language.toLowerCase();
         localStorage.setItem('patoketchup_language', this.currentLanguage);
-        
-        // Recharger les recettes avec la nouvelle langue
-        await this.updateAllRecipesLanguage();
-    }
-    
-    // Mettre à jour toutes les recettes affichées
-    async updateAllRecipesLanguage() {
-        // Cette fonction sera appelée pour recharger l'affichage
-        if (window.currentRecipes && window.currentRecipes.length > 0) {
-            const translatedRecipes = await Promise.all(
-                window.currentRecipes.map(recipe => 
-                    this.translateRecipe(recipe, this.currentLanguage)
-                )
-            );
-            
-            // Mettre à jour l'affichage
-            displayRecipes(translatedRecipes);
-        }
+        console.log(`🌍 TranslationAI : Langue changée vers ${this.currentLanguage}`);
     }
 }
 
 // Instance globale de l'IA de traduction
 const translationAI = new TranslationAI();
+window.translationAI = translationAI; // Rendre accessible globalement
+console.log('🌍 TranslationAI initialisé et disponible globalement');
 
 // Fonction pour traduire automatiquement une recette (remplacement de l'ancienne fonction)
 async function translateRecipeToFrench(recipe) {
@@ -2265,38 +2937,6 @@ function displayFrigoRecipes(recipes) {
 // NOTIFICATIONS SYSTÈME
 // ========================================
 
-// Afficher une notification
-function showNotification(message, type = 'info') {
-    // Supprimer les notifications existantes
-    const existing = document.querySelector('.notification');
-    if (existing) existing.remove();
-    
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-        <i class="fas fa-${getNotificationIcon(type)}"></i>
-        <span>${message}</span>
-        <button class="notification-close">&times;</button>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Afficher avec animation
-    setTimeout(() => notification.classList.add('show'), 10);
-    
-    // Masquer automatiquement après 3 secondes
-    setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
-    
-    // Fermer manuellement
-    notification.querySelector('.notification-close').onclick = () => {
-        notification.classList.remove('show');
-        setTimeout(() => notification.remove(), 300);
-    };
-}
-
 // Obtenir l'icône selon le type de notification
 function getNotificationIcon(type) {
     const icons = {
@@ -2326,20 +2966,15 @@ function initializeEventListeners() {
         searchInput.addEventListener('input', handleSearch);
     }
     
-    // Filtres par catégorie (seulement sur la page d'accueil)
-    const categoryChips = document.querySelectorAll('.chip');
-    categoryChips.forEach(chip => {
-        chip.addEventListener('click', handleCategoryFilter);
-    });
-    
     // Bouton de filtre avancé
     const filterBtn = document.querySelector('.filter-btn');
     if (filterBtn) {
         filterBtn.addEventListener('click', toggleAdvancedFilters);
     }
     
-    // Initialiser la section d'accueil par défaut
+    // Initialiser la section d'accueil par défaut avec recettes aléatoires
     switchSection('home');
+    loadInitialRandomRecipes();
 }
 
 // ========================================
@@ -2378,63 +3013,10 @@ async function handleSearch(event) {
 }
 
 // Gestion des filtres par catégorie avec API
-async function handleCategoryFilter(event, categoryOverride = null) {
-    const category = categoryOverride || (event ? event.currentTarget.dataset.category : 'all');
-    
-    console.log('🏷️ Filtre catégorie API:', category);
-    
-    // Mettre à jour l'UI des puces
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    if (event) {
-        event.currentTarget.classList.add('active');
-    } else {
-        // Trouver et activer la bonne puce
-        const targetChip = document.querySelector(`[data-category="${category}"]`);
-        if (targetChip) {
-            targetChip.classList.add('active');
-        }
-    }
-    
-    currentCategory = category;
-    
-    try {
-        let recipes;
-        
-        if (currentSearchTerm) {
-            // Si on a un terme de recherche, l'appliquer avec le filtre
-            recipes = await searchRecipes(currentSearchTerm, category === 'all' ? '' : category, 12);
-        } else {
-            // Sinon charger des recettes par catégorie
-            if (category === 'all') {
-                recipes = await loadRandomRecipes(12);
-            } else {
-                // Rechercher par type de plat
-                const categoryQuery = getCategoryQuery(category);
-                recipes = await searchRecipes(categoryQuery, category, 12);
-            }
-        }
-        
-        currentRecipes = recipes;
-        renderRecipes(currentRecipes);
-        updateRecipeCount(currentRecipes.length);
-        
-    } catch (error) {
-        console.error('❌ Erreur filtre:', error);
-        showNotification('Erreur lors du filtrage', 'error');
-    }
-}
-
-// Convertir nos catégories vers les termes de recherche API
-function getCategoryQuery(category) {
-    const queries = {
-        'entrees': 'appetizer salad starter',
-        'plats': 'main course dinner lunch',
-        'desserts': 'dessert sweet cake'
-    };
-    return queries[category] || '';
-}
-
 // Basculer les filtres avancés (placeholder)
+function toggleAdvancedFilters() {
+    console.log('🔧 Filtres avancés (fonctionnalité à implémenter)');
+}
 function toggleAdvancedFilters() {
     console.log('🔧 Filtres avancés (à implémenter)');
     // Ici on pourrait ajouter des filtres par difficulté, temps, etc.
@@ -2444,14 +3026,31 @@ function toggleAdvancedFilters() {
 // FONCTIONS D'AFFICHAGE
 // ========================================
 
-// Rendu des recettes
-function renderRecipes(recipes) {
+// Rendu des recettes avec système d'onglets par catégories
+function renderRecipes(recipes, useCategories = true) {
+    console.log('📋 Rendu des recettes:', recipes.length, 'recettes, useCategories:', useCategories);
+    
+    if (useCategories && recipes.length > 0) {
+        // Utiliser le système d'onglets par catégories
+        renderRecipesWithCategories(recipes);
+    } else {
+        // Utiliser l'affichage classique en grille
+        renderRecipesClassic(recipes);
+    }
+}
+
+// Rendu classique des recettes (mode fallback)
+function renderRecipesClassic(recipes) {
     const recipesGrid = document.querySelector('.recipes-grid');
     
     if (!recipesGrid) {
         console.error('❌ Element .recipes-grid non trouvé');
         return;
     }
+    
+    // Masquer les onglets de catégories
+    const categoriesSection = document.getElementById('recipe-categories');
+    if (categoriesSection) categoriesSection.style.display = 'none';
     
     if (recipes.length === 0) {
         recipesGrid.innerHTML = `
@@ -2464,24 +3063,203 @@ function renderRecipes(recipes) {
         return;
     }
     
-    const recipesHTML = recipes.map(recipe => `
-        <article class="recipe-card" data-recipe-id="${recipe.id}" onclick="openRecipeModal('${recipe.id}')">
+    const recipesHTML = recipes.map(recipe => renderRecipeCardStandard(recipe)).join('');
+    recipesGrid.innerHTML = recipesHTML;
+    
+    // Ajouter l'animation d'entrée
+    setTimeout(() => {
+        document.querySelectorAll('.recipe-card').forEach((card, index) => {
+            card.style.animationDelay = `${index * 0.1}s`;
+            card.classList.add('fade-in');
+        });
+    }, 50);
+}
+
+// Rendu des recettes avec onglets par catégories (mode principal)
+function renderRecipesWithCategories(recipes) {
+    console.log('📊 Affichage des recettes par catégories:', recipes.length);
+    
+    // Masquer la grille classique
+    const recipesGrid = document.querySelector('.recipes-grid');
+    if (recipesGrid) recipesGrid.style.display = 'none';
+    
+    // Afficher les onglets de catégories
+    const categoriesSection = document.getElementById('recipe-categories');
+    if (categoriesSection) categoriesSection.style.display = 'block';
+    
+    // Classifier les recettes par catégories
+    const categorizedRecipes = categorizeMainRecipes(recipes);
+    
+    // Afficher les recettes dans leurs onglets respectifs
+    renderMainCategorizedRecipes(categorizedRecipes);
+    
+    // Initialiser la gestion des onglets pour la section principale
+    initializeMainRecipeTabs();
+}
+
+// Classifier les recettes de la section principale par catégories
+function categorizeMainRecipes(recipes) {
+    const categories = {
+        sucrees: [],
+        salees: [],
+        vegetariennes: []
+    };
+    
+    recipes.forEach(recipe => {
+        const category = detectRecipeCategory(recipe);
+        categories[category].push(recipe);
+    });
+    
+    console.log('📊 Répartition des recettes principales:', {
+        sucrees: categories.sucrees.length,
+        salees: categories.salees.length,
+        vegetariennes: categories.vegetariennes.length
+    });
+    
+    return categories;
+}
+
+// Détecter la catégorie d'une recette
+function detectRecipeCategory(recipe) {
+    const name = (recipe.name || '').toLowerCase();
+    const description = (recipe.description || '').toLowerCase();
+    const category = (recipe.category || '').toLowerCase();
+    const fullText = `${name} ${description} ${category}`;
+    
+    console.log(`🔍 Analyse recette: "${recipe.name}" - Texte: "${fullText.substring(0, 100)}..."`);
+    
+    // Mots-clés pour recettes sucrées (TOUS LES DESSERTS)
+    const sweetKeywords = [
+        // Desserts en anglais
+        'cake', 'cookie', 'dessert', 'sweet', 'chocolate', 'sugar', 'candy',
+        'pie', 'tart', 'cream', 'ice cream', 'pudding', 'brownie', 'muffin',
+        'banana bread', 'cheesecake', 'cookies', 'cupcake', 'donut', 'macaron', 
+        'mousse', 'soufflé', 'pancake', 'waffle', 'tiramisu', 'flan', 'crumble',
+        'cobbler', 'parfait', 'sundae', 'float', 'shake', 'smoothie bowl',
+        'fruit salad', 'berry', 'strawberry', 'blueberry', 'raspberry',
+        'apple pie', 'lemon', 'vanilla', 'caramel', 'honey', 'maple',
+        'cinnamon', 'nutella', 'frosting', 'icing', 'jam', 'jelly',
+        'marshmallow', 'whipped cream', 'custard', 'gelato', 'sorbet',
+        
+        // Desserts en français
+        'gâteau', 'sucré', 'chocolat', 'sucre', 'crème', 'glace', 'dessert',
+        'tarte', 'biscuit', 'bonbon', 'pâtisserie', 'confiture', 'miel',
+        'vanille', 'caramel', 'cannelle', 'fraise', 'pomme', 'citron',
+        'fruits', 'baies', 'chantilly', 'crème anglaise', 'sorbet',
+        
+        // Types de plats sucrés spécifiques
+        'birthday cake', 'wedding cake', 'layer cake', 'pound cake',
+        'sponge cake', 'chocolate cake', 'carrot cake', 'red velvet',
+        'fruit cake', 'coffee cake', 'bundt cake', 'sheet cake'
+    ];
+    
+    // Mots-clés pour recettes végétariennes
+    const vegKeywords = [
+        'vegetarian', 'vegan', 'veggie', 'vegetables', 'salad', 'tofu',
+        'quinoa', 'beans', 'lentils', 'vegetable', 'plant', 'herb',
+        'végétarien', 'végétalien', 'légume', 'salade', 'haricot', 'lentille',
+        'quinoa', 'tofu', 'plante', 'herbe', 'spinach', 'broccoli', 'avocado',
+        'chickpea', 'mushroom', 'zucchini', 'eggplant', 'artichoke'
+    ];
+    
+    // Vérifier recettes sucrées en PREMIER ABSOLU (priorité maximale)
+    // Chercher dans le nom, description, catégorie ET ingrédients
+    const ingredients = Array.isArray(recipe.ingredients) ? 
+        recipe.ingredients.join(' ').toLowerCase() : '';
+    const fullTextWithIngredients = `${fullText} ${ingredients}`;
+    
+    const sweetMatch = sweetKeywords.find(keyword => fullTextWithIngredients.includes(keyword));
+    if (sweetMatch) {
+        console.log(`🧁 RECETTE SUCRÉE détectée: "${recipe.name}" (mot-clé: "${sweetMatch}")`);
+        return 'sucrees';
+    }
+    
+    // Vérification supplémentaire pour les desserts cachés
+    if (name.includes('sweet') || description.includes('sweet') || 
+        category.includes('sweet') || category.includes('dessert') ||
+        name.includes('cake') || name.includes('pie') || name.includes('cookie')) {
+        console.log(`🧁 RECETTE SUCRÉE détectée (vérification supplémentaire): "${recipe.name}"`);
+        return 'sucrees';
+    }
+    
+    // Vérifier recettes végétariennes
+    const vegMatch = vegKeywords.find(keyword => fullText.includes(keyword));
+    if (vegMatch || category.includes('vegetarian') || 
+        (recipe.area && recipe.area.toLowerCase().includes('vegetarian'))) {
+        console.log(`🥬 RECETTE VÉGÉTARIENNE détectée: "${recipe.name}" (mot-clé: "${vegMatch || 'category/area'}")`);
+        return 'vegetariennes';
+    }
+    
+    // Par défaut : recettes salées
+    console.log(`🥘 RECETTE SALÉE par défaut: "${recipe.name}"`);
+    return 'salees';
+}
+
+// Rendre les recettes principales dans leurs onglets respectifs
+function renderMainCategorizedRecipes(categorizedRecipes) {
+    // Mettre à jour les compteurs des onglets
+    Object.keys(categorizedRecipes).forEach(category => {
+        const count = categorizedRecipes[category].length;
+        const countElement = document.getElementById(`count-main-${category}`);
+        if (countElement) {
+            countElement.textContent = count;
+        }
+    });
+    
+    // Rendre chaque catégorie
+    Object.keys(categorizedRecipes).forEach(category => {
+        const grid = document.getElementById(`recipes-grid-${category}`);
+        const noRecipesMsg = document.getElementById(`no-main-${category}`);
+        
+        if (!grid) return;
+        
+        const recipes = categorizedRecipes[category];
+        
+        if (recipes.length === 0) {
+            grid.innerHTML = '';
+            if (noRecipesMsg) noRecipesMsg.style.display = 'block';
+        } else {
+            if (noRecipesMsg) noRecipesMsg.style.display = 'none';
+            grid.innerHTML = recipes.map(recipe => renderRecipeCardStandard(recipe)).join('');
+            
+            // Ajouter animations
+            setTimeout(() => {
+                grid.querySelectorAll('.recipe-card').forEach((card, index) => {
+                    card.style.animationDelay = `${index * 0.1}s`;
+                    card.classList.add('fade-in');
+                });
+            }, 50);
+        }
+    });
+}
+
+// Rendre une carte de recette standard
+function renderRecipeCardStandard(recipe) {
+    const isFavorite = isRecipeInFavorites(recipe.id);
+    
+    return `
+        <article class="recipe-card" data-recipe-id="${recipe.id}">
             <div class="recipe-image">
                 <img src="${recipe.image}" alt="${recipe.name}" loading="lazy" 
                      onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop&auto=format'; console.log('Image failed to load:', '${recipe.image}');">
                 <div class="recipe-category">${getCategoryLabel(recipe.category)}</div>
+                <button class="favorite-btn ${isFavorite ? 'active' : ''}" 
+                        onclick="toggleFavorite(event, '${recipe.id}')" 
+                        title="${isFavorite ? 'Supprimer des favoris' : 'Ajouter aux favoris'}">
+                    ${isFavorite ? '❤️' : '🤍'}
+                </button>
             </div>
-            <div class="recipe-content">
+            <div class="recipe-content" onclick="openRecipeModal('${recipe.id}')">
                 <h3 class="recipe-title">
                     ${recipe.name}
-                    ${recipe.isTranslated ? `<span class="translation-badge" title="Traduit automatiquement vers ${recipe.translatedTo || translationAI.currentLanguage}${recipe.originalName ? ' depuis: ' + recipe.originalName : ''}">🌍 ${getLanguageFlag(recipe.translatedTo || translationAI.currentLanguage)}</span>` : ''}
+                    ${recipe.isTranslated ? `<span class="translation-badge" title="Traduit automatiquement vers ${recipe.translatedTo || (window.translationAI?.currentLanguage || 'français')}${recipe.originalName ? ' depuis: ' + recipe.originalName : ''}">🌍 ${getLanguageFlag(recipe.translatedTo || (window.translationAI?.currentLanguage || 'français'))}</span>` : ''}
                 </h3>
                 <p class="recipe-description">${recipe.description}</p>
                 <div class="recipe-meta">
                     <span class="recipe-time">
                         <i class="fas fa-clock"></i> ${recipe.time}
                     </span>
-                    <span class="recipe-difficulty ${recipe.difficulty.toLowerCase()}">
+                    <span class="recipe-difficulty ${(recipe.difficulty || '').toLowerCase()}">
                         <i class="fas fa-signal"></i> ${recipe.difficulty}
                     </span>
                     <span class="recipe-servings">
@@ -2489,46 +3267,192 @@ function renderRecipes(recipes) {
                     </span>
                 </div>
             </div>
-            <div class="recipe-overlay">
+            <div class="recipe-overlay" onclick="openRecipeModal('${recipe.id}')">
                 <button class="view-recipe-btn">
                     <i class="fas fa-eye"></i>
                     Voir la recette
                 </button>
             </div>
         </article>
-    `).join('');
+    `;
+}
+
+// Initialiser la gestion des onglets de la section principale
+function initializeMainRecipeTabs() {
+    const tabButtons = document.querySelectorAll('.recipe-tabs-main .recipe-tab-btn');
+    const tabPanels = document.querySelectorAll('#recipe-categories .tab-panel');
     
-    recipesGrid.innerHTML = recipesHTML;
+    // Gestionnaires de clic pour les onglets
+    tabButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            const category = button.getAttribute('data-category');
+            
+            // Désactiver tous les onglets
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabPanels.forEach(panel => panel.classList.remove('active'));
+            
+            // Activer l'onglet sélectionné
+            button.classList.add('active');
+            const targetPanel = document.getElementById(`panel-main-${category}`);
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+            }
+            
+            console.log(`📋 Onglet principal activé: ${category}`);
+        });
+    });
     
-    // Ajouter l'animation d'entrée
+    console.log('📋 Onglets principaux initialisés');
+}
+
+// Mettre à jour le compteur de recettes
+// Charger les recettes aléatoires initiales directement dans les catégories
+async function loadInitialRandomRecipes() {
+    console.log('🎲 Chargement de 12 recettes aléatoires...');
+    
+    try {
+        // Charger simplement 12 recettes aléatoires
+        const randomRecipes = await loadRandomRecipes(12);
+        
+        if (randomRecipes && randomRecipes.length > 0) {
+            console.log(`📋 ${randomRecipes.length} recettes chargées`);
+            
+            // Les afficher directement dans la grille principale
+            renderSimpleRecipes(randomRecipes);
+            
+            // Masquer le message de bienvenue
+            const messageContainer = document.getElementById('message-container');
+            if (messageContainer) {
+                messageContainer.style.display = 'none';
+            }
+            
+            // Afficher le header des résultats
+            const resultsHeader = document.querySelector('.results-header');
+            if (resultsHeader) {
+                resultsHeader.style.display = 'flex';
+            }
+            
+            updateRecipeCount(randomRecipes.length);
+        } else {
+            console.warn('⚠️ Aucune recette trouvée');
+        }
+        
+    } catch (error) {
+        console.error('❌ Erreur lors du chargement des recettes aléatoires:', error);
+        showSimpleErrorMessage();
+    }
+}
+
+// Nouvelle fonction pour charger spécifiquement des desserts
+async function loadDessertRecipes(number = 4) {
+    console.log(`🧁 Chargement de ${number} desserts spécifiques...`);
+    
+    try {
+        // Recherche de recettes avec mots-clés de desserts
+        const dessertKeywords = ['cake', 'chocolate', 'cookie', 'pie', 'pudding'];
+        const desserts = [];
+        
+        for (const keyword of dessertKeywords) {
+            if (desserts.length >= number) break;
+            
+            try {
+                const data = await makeAPICall(`${API_CONFIG.endpoints.searchByName}${keyword}`);
+                if (data && data.meals && data.meals.length > 0) {
+                    // Prendre la première recette trouvée pour ce mot-clé
+                    const meal = data.meals[0];
+                    const recipe = {
+                        id: meal.idMeal,
+                        name: meal.strMeal,
+                        category: meal.strCategory || 'Dessert',
+                        area: meal.strArea,
+                        image: enhanceImageQuality(meal.strMealThumb),
+                        description: meal.strInstructions ? 
+                            meal.strInstructions.substring(0, 150) + '...' : 
+                            'Délicieux dessert à découvrir'
+                    };
+                    desserts.push(recipe);
+                    console.log(`🧁 Dessert trouvé: ${recipe.name}`);
+                }
+            } catch (error) {
+                console.warn(`⚠️ Erreur recherche dessert "${keyword}":`, error);
+            }
+        }
+        
+        console.log(`✅ ${desserts.length} desserts chargés`);
+        return desserts;
+        
+    } catch (error) {
+        console.error('❌ Erreur chargement desserts:', error);
+        return [];
+    }
+}
+
+// Fonction pour afficher les recettes de manière simple
+function renderSimpleRecipes(recipes) {
+    const recipesGrid = document.getElementById('recipes-grid');
+    if (!recipesGrid) return;
+    
+    // Afficher les cartes de recettes directement
+    recipesGrid.innerHTML = recipes.map(recipe => renderRecipeCardStandard(recipe)).join('');
+    
+    // Ajouter animations
     setTimeout(() => {
-        document.querySelectorAll('.recipe-card').forEach((card, index) => {
-            setTimeout(() => {
-                card.style.opacity = '1';
-                card.style.transform = 'translateY(0)';
-            }, index * 100);
+        recipesGrid.querySelectorAll('.recipe-card').forEach((card, index) => {
+            card.style.animationDelay = `${index * 0.1}s`;
+            card.classList.add('fade-in');
         });
     }, 50);
 }
 
+// Fonction pour afficher un message d'erreur simple
+function showSimpleErrorMessage() {
+    const recipesGrid = document.getElementById('recipes-grid');
+    if (recipesGrid) {
+        recipesGrid.innerHTML = `
+            <div class="error-message">
+                <p>❌ Erreur lors du chargement des recettes</p>
+                <p>Veuillez réessayer plus tard</p>
+            </div>
+        `;
+    }
+}
+
+// Afficher un message d'erreur dans les catégories
+function showErrorInCategories() {
+    const categoriesSection = document.getElementById('recipe-categories');
+    if (categoriesSection) {
+        categoriesSection.style.display = 'block';
+    }
+    
+    ['sucrees', 'salees', 'vegetariennes'].forEach(category => {
+        const grid = document.getElementById(`recipes-grid-${category}`);
+        const noRecipesMsg = document.getElementById(`no-main-${category}`);
+        const countElement = document.getElementById(`count-main-${category}`);
+        
+        if (grid) {
+            grid.innerHTML = `
+                <div class="error-message">
+                    <p>❌ Erreur lors du chargement des recettes</p>
+                    <p>Veuillez réessayer plus tard</p>
+                </div>
+            `;
+        }
+        if (noRecipesMsg) noRecipesMsg.style.display = 'none';
+        if (countElement) countElement.textContent = '0';
+    });
+}
+
 // Mettre à jour le compteur de recettes
 function updateRecipeCount(count) {
-    const subtitle = document.querySelector('.page-subtitle');
-    if (subtitle) {
+    const countElement = document.getElementById('results-count');
+    if (countElement) {
         if (count === 0) {
-            if (currentSearchTerm) {
-                subtitle.textContent = `Aucun résultat pour "${currentSearchTerm}"`;
-            } else {
-                subtitle.textContent = 'Aucune recette trouvée';
-            }
+            countElement.textContent = 'Aucune recette';
         } else if (count === 1) {
-            subtitle.textContent = '1 recette trouvée';
+            countElement.textContent = '1 recette';
         } else {
-            if (currentSearchTerm) {
-                subtitle.textContent = `${count} recettes trouvées pour "${currentSearchTerm}"`;
-            } else {
-                subtitle.textContent = `${count} délicieuses recettes à découvrir`;
-            }
+            countElement.textContent = `${count} recettes`;
         }
     }
 }
@@ -2547,7 +3471,7 @@ function getCategoryLabel(category) {
 // FONCTIONS DU MODAL AVEC API
 // ========================================
 
-// Ouvrir le modal avec les détails de la recette depuis l'API
+// Ouvrir le modal avec les détails de la recette depuis l'API + Traduction à la demande
 async function openRecipeModal(recipeId) {
     console.log('🔍 Tentative d\'ouverture recette avec ID:', recipeId, 'Type:', typeof recipeId);
     
@@ -2575,13 +3499,59 @@ async function openRecipeModal(recipeId) {
         
         console.log('📖 Ouverture recette:', recipe.name);
         
-        // Créer le contenu du modal avec les données API
+        // 🌍 ÉTAPE CLEF : Traduction à la demande si nécessaire
+        const currentLanguage = localStorage.getItem('patoketchup_language') || 'français';
+        let displayRecipe = { ...recipe };
+        
+        console.log(`🌍 DEBUG - Langue sélectionnée: "${currentLanguage}"`);
+        console.log(`🌍 DEBUG - Recipe name: "${recipe.name}"`);
+        console.log(`🌍 DEBUG - window.translationAI exists:`, !!window.translationAI);
+        
+        if (currentLanguage !== 'anglais' && currentLanguage !== 'english') {
+            console.log(`🔄 DEBUT TRADUCTION - "${recipe.name}" vers ${currentLanguage}...`);
+            
+            // Afficher un indicateur de traduction
+            showTranslationProgress('🔄 Traduction de la recette en cours...');
+            
+            try {
+                // Vérifier que l'instance globale de TranslationAI existe
+                if (!window.translationAI) {
+                    console.error('❌ TranslationAI non initialisé !');
+                    throw new Error('Système de traduction non disponible');
+                }
+                
+                console.log(`🌍 DEBUG - TranslationAI instance:`, window.translationAI);
+                console.log(`🌍 DEBUG - Current language before setLanguage:`, window.translationAI.currentLanguage);
+                
+                // S'assurer que la langue est synchronisée
+                await window.translationAI.setLanguage(currentLanguage);
+                console.log(`✅ Langue synchronisée: ${currentLanguage}`);
+                console.log(`🌍 DEBUG - Current language after setLanguage:`, window.translationAI.currentLanguage);
+                
+                // Traduire les éléments principaux
+                console.log(`🔄 APPEL translateRecipe...`);
+                displayRecipe = await window.translationAI.translateRecipe(recipe, currentLanguage);
+                
+                console.log('✅ Recette traduite avec succès:', displayRecipe.name);
+                hideTranslationProgress();
+                
+            } catch (error) {
+                console.warn('⚠️ Erreur lors de la traduction:', error);
+                hideTranslationProgress();
+                showNotification('Traduction partiellement disponible', 'warning');
+            }
+        } else {
+            console.log('⏭️ Pas de traduction nécessaire (langue anglaise sélectionnée)');
+        }
+        
+        // Créer le contenu du modal avec les données traduites
         const modalHTML = `
             <div class="modal" id="recipeModal">
                 <div class="modal-overlay" onclick="closeRecipeModal()"></div>
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h2 class="modal-title">${recipe.name}</h2>
+                        <h2 class="modal-title">${displayRecipe.name}</h2>
+                        ${displayRecipe.isTranslated ? `<span class="translation-badge">🌍 Traduit vers ${currentLanguage}</span>` : ''}
                         <button class="modal-close" onclick="closeRecipeModal()">
                             <i class="fas fa-times"></i>
                         </button>
@@ -2589,28 +3559,28 @@ async function openRecipeModal(recipeId) {
                     <div class="modal-body">
                         <div class="recipe-details">
                             <div class="recipe-image-large">
-                                <img src="${recipe.image}" alt="${recipe.name}" 
-                                     onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop&auto=format'; console.log('Modal image failed to load:', '${recipe.image}');">
+                                <img src="${displayRecipe.image}" alt="${displayRecipe.name}" 
+                                     onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop&auto=format'; console.log('Modal image failed to load:', '${displayRecipe.image}');">
                                 <div class="recipe-meta-overlay">
-                                    <span class="recipe-category-large">${getCategoryLabel(recipe.category)}</span>
+                                    <span class="recipe-category-large">${getCategoryLabel(displayRecipe.category)}</span>
                                     <div class="recipe-stats">
-                                        <span><i class="fas fa-clock"></i> ${recipe.time}</span>
-                                        <span><i class="fas fa-signal"></i> ${recipe.difficulty}</span>
-                                        <span><i class="fas fa-users"></i> ${recipe.servings} personnes</span>
+                                        <span><i class="fas fa-clock"></i> ${displayRecipe.time}</span>
+                                        <span><i class="fas fa-signal"></i> ${displayRecipe.difficulty}</span>
+                                        <span><i class="fas fa-users"></i> ${displayRecipe.servings} personnes</span>
                                     </div>
                                 </div>
                             </div>
                             
                             <div class="recipe-info">
                                 <div class="recipe-description-large">
-                                    <p>${recipe.description}</p>
+                                    <p>${displayRecipe.description}</p>
                                 </div>
                                 
                                 <div class="recipe-ingredients">
                                     <h3><i class="fas fa-list-ul"></i> Ingrédients</h3>
-                                    ${recipe.ingredients && recipe.ingredients.length > 0 ? `
+                                    ${displayRecipe.ingredients && displayRecipe.ingredients.length > 0 ? `
                                         <ul class="ingredients-list">
-                                            ${recipe.ingredients.map(ingredient => 
+                                            ${displayRecipe.ingredients.map(ingredient => 
                                                 `<li><i class="fas fa-check"></i> ${ingredient}</li>`
                                             ).join('')}
                                         </ul>
@@ -2619,9 +3589,9 @@ async function openRecipeModal(recipeId) {
                                 
                                 <div class="recipe-instructions">
                                     <h3><i class="fas fa-utensils"></i> Préparation</h3>
-                                    ${recipe.instructions && recipe.instructions.length > 0 ? `
+                                    ${displayRecipe.instructions && displayRecipe.instructions.length > 0 ? `
                                         <ol class="instructions-list">
-                                            ${recipe.instructions.map((instruction, index) => 
+                                            ${displayRecipe.instructions.map((instruction, index) => 
                                                 `<li>
                                                     <span class="step-number">${index + 1}</span>
                                                     <span class="step-text">${instruction}</span>
@@ -2630,6 +3600,12 @@ async function openRecipeModal(recipeId) {
                                         </ol>
                                     ` : '<p class="no-data">Instructions non disponibles</p>'}
                                 </div>
+                                
+                                ${displayRecipe.originalName ? `
+                                    <div class="original-recipe-info">
+                                        <small><i class="fas fa-info-circle"></i> Recette originale : ${displayRecipe.originalName}</small>
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
@@ -2637,9 +3613,14 @@ async function openRecipeModal(recipeId) {
                         <button class="btn-secondary" onclick="closeRecipeModal()">
                             <i class="fas fa-times"></i> Fermer
                         </button>
-                        <button class="btn-primary" onclick="addToFavorites(${recipe.id})">
+                        <button class="btn-primary" onclick="addToFavorites(${displayRecipe.id})">
                             <i class="fas fa-heart"></i> Ajouter aux favoris
                         </button>
+                        ${displayRecipe.isTranslated ? `
+                            <button class="btn-info" onclick="showOriginalRecipe('${recipeId}')">
+                                <i class="fas fa-language"></i> Version originale
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -2667,6 +3648,76 @@ async function openRecipeModal(recipeId) {
         console.error('❌ Erreur ouverture modal:', error);
         showNotification('Erreur lors de l\'ouverture de la recette', 'error');
         closeRecipeModal();
+    }
+}
+
+// Fonctions de support pour la traduction à la demande
+
+// Afficher indicateur de progression de traduction
+function showTranslationProgress(message) {
+    // Supprimer l'indicateur existant s'il y en a un
+    const existingIndicator = document.getElementById('translationProgress');
+    if (existingIndicator) {
+        existingIndicator.remove();
+    }
+    
+    // Créer l'indicateur de traduction
+    const progressHTML = `
+        <div id="translationProgress" class="translation-progress">
+            <div class="translation-content">
+                <div class="spinner"></div>
+                <span>${message}</span>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', progressHTML);
+    
+    // Afficher avec animation
+    setTimeout(() => {
+        document.getElementById('translationProgress').classList.add('active');
+    }, 10);
+}
+
+// Masquer indicateur de traduction
+function hideTranslationProgress() {
+    const indicator = document.getElementById('translationProgress');
+    if (indicator) {
+        indicator.classList.remove('active');
+        setTimeout(() => indicator.remove(), 300);
+    }
+}
+
+// Afficher la version originale de la recette
+async function showOriginalRecipe(recipeId) {
+    try {
+        // Sauvegarder la langue actuelle
+        const currentLang = localStorage.getItem('selectedLanguage');
+        
+        // Temporairement passer en anglais
+        localStorage.setItem('selectedLanguage', 'anglais');
+        
+        // Recharger la recette
+        await openRecipeModal(recipeId);
+        
+        // Restaurer la langue
+        localStorage.setItem('selectedLanguage', currentLang);
+        
+        // Ajouter un bouton pour revenir à la traduction
+        const modal = document.querySelector('.modal-footer');
+        if (modal) {
+            const backButton = document.createElement('button');
+            backButton.className = 'btn-warning';
+            backButton.innerHTML = '<i class="fas fa-language"></i> Version traduite';
+            backButton.onclick = () => {
+                openRecipeModal(recipeId);
+            };
+            modal.insertBefore(backButton, modal.lastElementChild);
+        }
+        
+    } catch (error) {
+        console.error('Erreur affichage version originale:', error);
+        showNotification('Erreur lors du changement de version', 'error');
     }
 }
 
@@ -2713,90 +3764,8 @@ function closeRecipeModal() {
         modal.classList.remove('active');
         
         setTimeout(() => {
-            modal.remove();
-            // Restaurer le scroll du body
-            document.body.style.overflow = '';
         }, 300);
     }
-}
-
-// Ajouter aux favoris (avec localStorage)
-function addToFavorites(recipeId) {
-    try {
-        // Récupérer les favoris existants
-        let favorites = JSON.parse(localStorage.getItem('patoketchup_favorites') || '[]');
-        
-        // Vérifier si déjà dans les favoris
-        if (favorites.includes(recipeId)) {
-            showNotification('Cette recette est déjà dans vos favoris !', 'info');
-            return;
-        }
-        
-        // Ajouter aux favoris
-        favorites.push(recipeId);
-        localStorage.setItem('patoketchup_favorites', JSON.stringify(favorites));
-        
-        // Trouver le nom de la recette
-        const recipe = currentRecipes.find(r => r.id === recipeId);
-        const recipeName = recipe ? recipe.name : 'Recette';
-        
-        showNotification(`${recipeName} ajoutée aux favoris !`, 'success');
-        
-    } catch (error) {
-        console.error('❌ Erreur favoris:', error);
-        showNotification('Erreur lors de l\'ajout aux favoris', 'error');
-    }
-}
-
-// Afficher une notification améliorée
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    
-    const iconClass = {
-        'success': 'check-circle',
-        'error': 'exclamation-circle',
-        'info': 'info-circle',
-        'warning': 'exclamation-triangle'
-    }[type] || 'info-circle';
-    
-    notification.innerHTML = `
-        <i class="fas fa-${iconClass}"></i>
-        <span>${message}</span>
-        <button class="notification-close" onclick="this.parentElement.remove()">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Animation d'entrée
-    setTimeout(() => {
-        notification.classList.add('show');
-    }, 10);
-    
-    // Suppression automatique
-    const autoRemoveTimeout = setTimeout(() => {
-        if (notification.parentElement) {
-            notification.classList.remove('show');
-            setTimeout(() => {
-                if (notification.parentElement) {
-                    notification.remove();
-                }
-            }, 300);
-        }
-    }, type === 'error' ? 5000 : 3000); // Erreurs restent plus longtemps
-    
-    // Permettre la fermeture manuelle
-    notification.addEventListener('click', () => {
-        clearTimeout(autoRemoveTimeout);
-        notification.classList.remove('show');
-        setTimeout(() => {
-            if (notification.parentElement) {
-                notification.remove();
-            }
-        }, 300);
-    });
 }
 
 // Fermer le modal avec la touche Échap
@@ -3675,22 +4644,118 @@ class FrigoManager {
         }
     }
 
-    // Afficher les résultats de l'API
+    // Afficher les résultats de l'API avec système d'onglets par catégories
     displayAPIResults(recipes) {
-        const grid = document.getElementById('frigo-recipes-grid');
-        if (!grid) return;
-
+        console.log('📋 Affichage des recettes par catégories:', recipes.length);
+        
         if (recipes.length === 0) {
-            grid.innerHTML = `
-                <div class="no-recipes-found">
-                    <p>🔍 Aucune recette trouvée avec l'API pour ces ingrédients</p>
-                    <p>Essayez les suggestions IA à la place !</p>
-                </div>
-            `;
+            this.showEmptyRecipesTabs();
             return;
         }
 
-        grid.innerHTML = recipes.map(recipe => `
+        // Classifier les recettes par catégories
+        const categorizedRecipes = this.categorizeRecipes(recipes);
+        
+        // Afficher les recettes dans leurs onglets respectifs
+        this.renderCategorizedRecipes(categorizedRecipes);
+        
+        // Initialiser la gestion des onglets
+        this.initializeRecipeTabs();
+    }
+    
+    // Classifier les recettes par catégories
+    categorizeRecipes(recipes) {
+        const categories = {
+            sucrees: [],
+            salees: [],
+            vegetariennes: []
+        };
+        
+        recipes.forEach(recipe => {
+            const category = this.detectRecipeCategory(recipe);
+            categories[category].push(recipe);
+        });
+        
+        console.log('📊 Répartition des recettes:', {
+            sucrees: categories.sucrees.length,
+            salees: categories.salees.length,
+            vegetariennes: categories.vegetariennes.length
+        });
+        
+        return categories;
+    }
+    
+    // Détecter la catégorie d'une recette
+    detectRecipeCategory(recipe) {
+        const name = recipe.name.toLowerCase();
+        const description = (recipe.description || '').toLowerCase();
+        const fullText = `${name} ${description}`;
+        
+        // Mots-clés pour recettes sucrées
+        const sweetKeywords = [
+            'cake', 'cookie', 'dessert', 'sweet', 'chocolate', 'sugar', 'candy',
+            'pie', 'tart', 'cream', 'ice cream', 'pudding', 'brownie', 'muffin',
+            'gâteau', 'sucré', 'chocolat', 'sucre', 'crème', 'glace', 'dessert',
+            'tarte', 'biscuit', 'bonbon', 'pâtisserie'
+        ];
+        
+        // Mots-clés pour recettes végétariennes
+        const vegKeywords = [
+            'vegetarian', 'vegan', 'veggie', 'vegetables', 'salad', 'tofu',
+            'quinoa', 'beans', 'lentils', 'vegetable', 'plant', 'herb',
+            'végétarien', 'végétalien', 'légume', 'salade', 'haricot', 'lentille',
+            'quinoa', 'tofu', 'plante', 'herbe'
+        ];
+        
+        // Vérifier recettes sucrées en premier
+        if (sweetKeywords.some(keyword => fullText.includes(keyword))) {
+            return 'sucrees';
+        }
+        
+        // Vérifier recettes végétariennes
+        if (vegKeywords.some(keyword => fullText.includes(keyword)) || 
+            recipe.category === 'Vegetarian' || 
+            recipe.area === 'Vegetarian') {
+            return 'vegetariennes';
+        }
+        
+        // Par défaut : recettes salées
+        return 'salees';
+    }
+    
+    // Rendre les recettes dans leurs onglets respectifs
+    renderCategorizedRecipes(categorizedRecipes) {
+        // Mettre à jour les compteurs des onglets
+        Object.keys(categorizedRecipes).forEach(category => {
+            const count = categorizedRecipes[category].length;
+            const countElement = document.getElementById(`count-${category}`);
+            if (countElement) {
+                countElement.textContent = count;
+            }
+        });
+        
+        // Rendre chaque catégorie
+        Object.keys(categorizedRecipes).forEach(category => {
+            const grid = document.getElementById(`frigo-recipes-grid-${category}`);
+            const noRecipesMsg = document.getElementById(`no-${category}`);
+            
+            if (!grid) return;
+            
+            const recipes = categorizedRecipes[category];
+            
+            if (recipes.length === 0) {
+                grid.innerHTML = '';
+                if (noRecipesMsg) noRecipesMsg.style.display = 'block';
+            } else {
+                if (noRecipesMsg) noRecipesMsg.style.display = 'none';
+                grid.innerHTML = recipes.map(recipe => this.renderRecipeCard(recipe)).join('');
+            }
+        });
+    }
+    
+    // Rendre une carte de recette
+    renderRecipeCard(recipe) {
+        return `
             <article class="recipe-card frigo-recipe-card" onclick="openRecipeModal('${recipe.id}')">
                 <div class="recipe-image">
                     <img src="${recipe.image}" alt="${recipe.name}" loading="lazy">
@@ -3702,12 +4767,65 @@ class FrigoManager {
                 <div class="recipe-content">
                     <h4 class="recipe-title">
                         ${recipe.name}
-                        ${recipe.isTranslated ? `<span class="translation-badge" title="Traduit automatiquement vers ${recipe.translatedTo || translationAI.currentLanguage}${recipe.originalName ? ' depuis: ' + recipe.originalName : ''}">🌍 ${getLanguageFlag(recipe.translatedTo || translationAI.currentLanguage)}</span>` : ''}
+                        ${recipe.isTranslated ? `<span class="translation-badge" title="Traduit automatiquement vers ${recipe.translatedTo || (window.translationAI?.currentLanguage || 'français')}${recipe.originalName ? ' depuis: ' + recipe.originalName : ''}">🌍 ${this.getLanguageFlag(recipe.translatedTo || (window.translationAI?.currentLanguage || 'français'))}</span>` : ''}
                     </h4>
                     <p class="recipe-description">${recipe.description}</p>
                 </div>
             </article>
-        `).join('');
+        `;
+    }
+    
+    // Obtenir le drapeau d'une langue
+    getLanguageFlag(language) {
+        const flags = {
+            'français': '🇫🇷',
+            'anglais': '🇬🇧',
+            'espagnol': '🇪🇸',
+            'italien': '🇮🇹',
+            'allemand': '🇩🇪',
+            'portugais': '🇵🇹'
+        };
+        return flags[language] || '🌍';
+    }
+    
+    // Afficher l'état vide des onglets
+    showEmptyRecipesTabs() {
+        ['sucrees', 'salees', 'vegetariennes'].forEach(category => {
+            const grid = document.getElementById(`frigo-recipes-grid-${category}`);
+            const noRecipesMsg = document.getElementById(`no-${category}`);
+            const countElement = document.getElementById(`count-${category}`);
+            
+            if (grid) grid.innerHTML = '';
+            if (noRecipesMsg) noRecipesMsg.style.display = 'block';
+            if (countElement) countElement.textContent = '0';
+        });
+    }
+    
+    // Initialiser la gestion des onglets
+    initializeRecipeTabs() {
+        const tabButtons = document.querySelectorAll('.recipe-tab-btn');
+        const tabPanels = document.querySelectorAll('.tab-panel');
+        
+        // Gestionnaires de clic pour les onglets
+        tabButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const category = button.getAttribute('data-category');
+                
+                // Désactiver tous les onglets
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabPanels.forEach(panel => panel.classList.remove('active'));
+                
+                // Activer l'onglet sélectionné
+                button.classList.add('active');
+                const targetPanel = document.getElementById(`panel-${category}`);
+                if (targetPanel) {
+                    targetPanel.classList.add('active');
+                }
+                
+                console.log(`📋 Onglet activé: ${category}`);
+            });
+        });
     }
 
     // Masquer les résultats
@@ -3803,6 +4921,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialiser le sélecteur de langue
     initializeLanguageSelector();
     
+    // Initialiser les onglets de catégories de recettes (section Frigo)
+    initializeRecipeTabsGlobal();
+    
+    // Initialiser les onglets de la section principale (Recettes)
+    initializeMainRecipeTabs();
+    
     setTimeout(async () => {
         await testAPI();
     }, 1000);
@@ -3812,9 +4936,45 @@ document.addEventListener('DOMContentLoaded', async () => {
 // 🌍 GESTIONNAIRE SÉLECTEUR DE LANGUE IA
 // ========================================
 
+// Fonction globale pour initialiser les onglets de recettes
+function initializeRecipeTabsGlobal() {
+    const tabButtons = document.querySelectorAll('.recipe-tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+    
+    // Gestionnaires de clic pour les onglets
+    tabButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            const category = button.getAttribute('data-category');
+            
+            // Désactiver tous les onglets
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabPanels.forEach(panel => panel.classList.remove('active'));
+            
+            // Activer l'onglet sélectionné
+            button.classList.add('active');
+            const targetPanel = document.getElementById(`panel-${category}`);
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+            }
+            
+            console.log(`📋 Onglet activé: ${category}`);
+        });
+    });
+    
+    console.log('📋 Onglets de recettes initialisés');
+}
+
 // Initialiser le sélecteur de langue
 function initializeLanguageSelector() {
     console.log('🌍 Initialisation du sélecteur de langue IA...');
+    
+    // Récupérer la langue sauvegardée et synchroniser avec TranslationAI
+    const savedLanguage = localStorage.getItem('patoketchup_language') || 'français';
+    if (window.translationAI) {
+        window.translationAI.setLanguage(savedLanguage);
+        console.log(`🌍 Langue par défaut synchronisée : ${savedLanguage}`);
+    }
     
     // Gestionnaires des boutons de langue prédéfinis
     const languageBtns = document.querySelectorAll('.language-btn');
@@ -3864,24 +5024,21 @@ async function setApplicationLanguage(language) {
     try {
         console.log(`🌍 Changement de langue vers: ${language}`);
         
-        // Afficher un indicateur de chargement
-        showNotification('🔄 Traduction en cours...', 'info');
+        // Sauvegarder la langue dans localStorage pour la traduction à la demande
+        localStorage.setItem('selectedLanguage', language);
         
-        // Mettre à jour la langue dans l'IA
+        // Mettre à jour la langue dans l'IA globale
         await translationAI.setLanguage(language);
-        
-        // Recharger les recettes avec la nouvelle langue
-        await reloadRecipesWithLanguage(language);
         
         // Notification de succès
         const flag = getLanguageFlag(language);
-        showNotification(`${flag} Recettes traduites en ${language} !`, 'success');
+        showNotification(`${flag} Les nouvelles recettes seront traduites en ${language} !`, 'success');
         
-        console.log(`✅ Langue changée vers: ${language}`);
+        console.log(`✅ Langue changée vers: ${language} (traduction à la demande)`);
         
     } catch (error) {
         console.error('❌ Erreur lors du changement de langue:', error);
-        showNotification('❌ Erreur lors de la traduction', 'error');
+        showNotification('❌ Erreur lors de la configuration de la langue', 'error');
     }
 }
 
@@ -3904,15 +5061,6 @@ async function reloadRecipesWithLanguage(language) {
                 case 'home':
                     await loadInitialRecipes();
                     break;
-                case 'frigo':
-                    // Recharger les suggestions du frigo si applicable
-                    if (selectedIngredients.length > 0) {
-                        const frigoManager = new FrigoManager();
-                        await frigoManager.searchRecipes(selectedIngredients);
-                    }
-                    break;
-                default:
-                    console.log('Section non supportée pour le rechargement:', sectionName);
             }
         }
     }
@@ -3989,59 +5137,3 @@ function getLanguageDisplayName(language) {
     return names[lang] || language.charAt(0).toUpperCase() + language.slice(1);
 }
 
-// Fonction pour afficher des notifications
-function showNotification(message, type = 'info') {
-    // Créer ou réutiliser le conteneur de notifications
-    let notificationContainer = document.getElementById('notification-container');
-    if (!notificationContainer) {
-        notificationContainer = document.createElement('div');
-        notificationContainer.id = 'notification-container';
-        notificationContainer.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 10000;
-            pointer-events: none;
-        `;
-        document.body.appendChild(notificationContainer);
-    }
-    
-    // Créer la notification
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        background: ${type === 'success' ? 'linear-gradient(135deg, #27ae60, #2ecc71)' : 
-                     type === 'warning' ? 'linear-gradient(135deg, #f39c12, #e67e22)' : 
-                     type === 'error' ? 'linear-gradient(135deg, #e74c3c, #c0392b)' : 
-                     'linear-gradient(135deg, #3498db, #2980b9)'};
-        color: white;
-        padding: 15px 20px;
-        border-radius: 12px;
-        margin-bottom: 10px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        transform: translateX(100%);
-        transition: all 0.3s ease;
-        pointer-events: auto;
-        font-weight: 600;
-        font-size: 0.95rem;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    `;
-    notification.textContent = message;
-    
-    notificationContainer.appendChild(notification);
-    
-    // Animation d'entrée
-    setTimeout(() => {
-        notification.style.transform = 'translateX(0)';
-    }, 10);
-    
-    // Animation de sortie et suppression
-    setTimeout(() => {
-        notification.style.transform = 'translateX(100%)';
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 300);
-    }, 3000);
-}

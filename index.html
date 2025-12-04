@@ -42,16 +42,6 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="#" class="nav-link" data-section="shopping">
-                            📝 Ma Liste de Courses
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#" class="nav-link" data-section="quick">
-                            ⚡ Recettes Rapides
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a href="#" class="nav-link" data-section="anti-gaspi">
                             🌱 Anti-Gaspi
                         </a>
@@ -157,27 +147,18 @@
                                 ⚙️
                             </button>
                         </div>
-                        
-                        <!-- Categories rapides (chips) -->
-                        <div class="categories-chips">
-                            <button type="button" class="chip active" data-category="all">Tout</button>
-                            <button type="button" class="chip" data-category="breakfast">🌅 Petit-déj</button>
-                            <button type="button" class="chip" data-category="vegetarian">🌱 Végétarien</button>
-                            <button type="button" class="chip" data-category="quick">⚡ Rapide (-20min)</button>
-                            <button type="button" class="chip" data-category="easy">👶 Facile</button>
-                            <button type="button" class="chip" data-category="surprise">🎲 Surprise</button>
                         </div>
                     </div>
                 </section>
 
                 <!-- Zone de résultats (Accueil) -->
                 <section class="results-section" id="home-section">
-                    <div class="results-header" style="display: none;">
-                        <h3 class="results-title">Recettes trouvées</h3>
-                        <span class="results-count" id="results-count">0 recette(s)</span>
+                    <div class="results-header">
+                        <h3 class="results-title">Recettes du moment</h3>
+                        <span class="results-count" id="results-count">12 recettes</span>
                     </div>
                     
-                    <!-- Grille des cartes de recettes -->
+                    <!-- Grille principale des recettes -->
                     <div class="recipes-grid" id="recipes-grid">
                         <!-- Les cartes de recettes apparaîtront ici via JavaScript -->
                     </div>
@@ -278,12 +259,66 @@
                         </div>
                     </div>
 
-                    <!-- Résultats de recherche par ingrédients (API classique) -->
+                    <!-- Résultats de recherche par catégories avec onglets -->
                     <div class="frigo-results" id="frigo-results" style="display: none;">
-                        <h4 class="frigo-results-title">🍽️ Recettes trouvées avec l'API :</h4>
-                        <div class="frigo-recipes-grid" id="frigo-recipes-grid">
-                            <!-- Les recettes de l'API apparaîtront ici -->
+                        <h4 class="frigo-results-title">🍽️ Recettes trouvées :</h4>
+                        
+                        <!-- Onglets de catégories -->
+                        <div class="recipe-tabs">
+                            <button class="recipe-tab-btn active" data-category="sucrees">
+                                🧁 Recettes Sucrées
+                                <span class="tab-count" id="count-sucrees">0</span>
+                            </button>
+                            <button class="recipe-tab-btn" data-category="salees">
+                                🥘 Recettes Salées  
+                                <span class="tab-count" id="count-salees">0</span>
+                            </button>
+                            <button class="recipe-tab-btn" data-category="vegetariennes">
+                                🥬 Recettes Végétariennes
+                                <span class="tab-count" id="count-vegetariennes">0</span>
+                            </button>
                         </div>
+                        
+                        <!-- Conteneurs des recettes par catégorie -->
+                        <div class="recipe-tab-content">
+                            <div class="tab-panel active" id="panel-sucrees">
+                                <div class="frigo-recipes-grid" id="frigo-recipes-grid-sucrees">
+                                    <!-- Recettes sucrées -->
+                                </div>
+                                <div class="no-recipes-message" id="no-sucrees" style="display: none;">
+                                    🧁 Aucune recette sucrée trouvée pour vos ingrédients
+                                </div>
+                            </div>
+                            <div class="tab-panel" id="panel-salees">
+                                <div class="frigo-recipes-grid" id="frigo-recipes-grid-salees">
+                                    <!-- Recettes salées -->
+                                </div>
+                                <div class="no-recipes-message" id="no-salees" style="display: none;">
+                                    🥘 Aucune recette salée trouvée pour vos ingrédients
+                                </div>
+                            </div>
+                            <div class="tab-panel" id="panel-vegetariennes">
+                                <div class="frigo-recipes-grid" id="frigo-recipes-grid-vegetariennes">
+                                    <!-- Recettes végétariennes -->
+                                </div>
+                                <div class="no-recipes-message" id="no-vegetariennes" style="display: none;">
+                                    🥬 Aucune recette végétarienne trouvée pour vos ingrédients
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section Mes Favoris (masquée par défaut) -->
+                <section class="favorites-section" id="favorites-section" style="display: none;">
+                    <div class="section-header">
+                        <h2 class="favorites-title">❤️ Mes Recettes Favorites</h2>
+                        <p class="favorites-subtitle">Vos recettes sauvegardées</p>
+                    </div>
+                    
+                    <!-- Container pour les favoris (sera rempli par JavaScript) -->
+                    <div class="favorites-content" id="favorites-content">
+                        <!-- Contenu généré dynamiquement par displayFavorites() -->
                     </div>
                 </section>
             </div>
