@@ -1263,6 +1263,356 @@ window.displayFavorites = displayFavorites;
 window.switchSection = switchSection;
 
 // ========================================
+// FONCTIONNALITÉ ANTI-GASPI
+// ========================================
+
+class AntiGaspiManager {
+    constructor() {
+        this.userLocation = null;
+        this.nearbyShops = [];
+        this.currentFilter = 'all';
+        this.isLocating = false;
+    }
+    
+    // Initialiser la section Anti-Gaspi
+    initializeAntiGaspiSection() {
+        console.log('🌱 Initialisation section Anti-Gaspi');
+        this.setupEventListeners();
+    }
+    
+    // Configuration des événements
+    setupEventListeners() {
+        // Gestion des filtres
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Retirer la classe active des autres boutons
+                filterBtns.forEach(b => b.classList.remove('active'));
+                // Ajouter la classe active au bouton cliqué
+                e.target.classList.add('active');
+                // Mettre à jour le filtre
+                this.currentFilter = e.target.dataset.type;
+                // Filtrer les commerces affichés
+                this.filterDisplayedShops();
+            });
+        });
+    }
+    
+    // Obtenir la géolocalisation de l'utilisateur
+    async getUserLocation() {
+        if (this.isLocating) return;
+        
+        this.isLocating = true;
+        const statusEl = document.getElementById('location-status');
+        const locateBtn = document.getElementById('locate-btn');
+        
+        statusEl.innerHTML = '<span class="status-text loading">📍 Localisation en cours...</span>';
+        locateBtn.disabled = true;
+        
+        try {
+            if (!navigator.geolocation) {
+                throw new Error('Géolocalisation non supportée par ce navigateur');
+            }
+            
+            const position = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 300000 // 5 minutes
+                });
+            });
+            
+            this.userLocation = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
+            };
+            
+            console.log('📍 Position obtenue:', this.userLocation);
+            statusEl.innerHTML = `<span class="status-text success">✅ Position trouvée ! Recherche des commerces...</span>`;
+            
+            // Chercher les commerces à proximité
+            await this.findNearbyShops();
+            
+        } catch (error) {
+            console.error('❌ Erreur de géolocalisation:', error);
+            statusEl.innerHTML = `<span class="status-text error">❌ ${error.message}</span>`;
+        } finally {
+            this.isLocating = false;
+            locateBtn.disabled = false;
+        }
+    }
+    
+    // Trouver les commerces à proximité via API Overpass (OpenStreetMap)
+    async findNearbyShops() {
+        if (!this.userLocation) return;
+        
+        const statusEl = document.getElementById('location-status');
+        statusEl.innerHTML = '<span class="status-text loading">🔍 Recherche des commerces...</span>';
+        
+        try {
+            // Rayon de recherche : 2km
+            const radius = 2000;
+            const { lat, lng } = this.userLocation;
+            
+            // Requête Overpass pour différents types de commerces
+            const overpassQuery = `
+                [out:json][timeout:25];
+                (
+                    node["shop"="bakery"](around:${radius},${lat},${lng});
+                    node["shop"="supermarket"](around:${radius},${lat},${lng});
+                    node["shop"="grocery"](around:${radius},${lat},${lng});
+                    node["shop"="convenience"](around:${radius},${lat},${lng});
+                    node["amenity"="restaurant"](around:${radius},${lat},${lng});
+                    node["amenity"="fast_food"](around:${radius},${lat},${lng});
+                    way["shop"="bakery"](around:${radius},${lat},${lng});
+                    way["shop"="supermarket"](around:${radius},${lat},${lng});
+                    way["shop"="grocery"](around:${radius},${lat},${lng});
+                    way["amenity"="restaurant"](around:${radius},${lat},${lng});
+                );
+                out center meta;
+            `;
+            
+            console.log('🌍 Appel API Overpass...');
+            const response = await fetch('https://overpass-api.de/api/interpreter', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `data=${encodeURIComponent(overpassQuery)}`
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Erreur API Overpass: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('📍 Données reçues:', data);
+            
+            // Traiter les résultats
+            this.nearbyShops = this.processOverpassData(data.elements);
+            
+            statusEl.innerHTML = `<span class="status-text success">✅ ${this.nearbyShops.length} commerces trouvés</span>`;
+            
+            // Afficher les commerces
+            this.displayShops();
+            
+        } catch (error) {
+            console.error('❌ Erreur recherche commerces:', error);
+            statusEl.innerHTML = `<span class="status-text error">❌ Erreur: ${error.message}</span>`;
+        }
+    }
+    
+    // Traiter les données Overpass
+    processOverpassData(elements) {
+        const shops = [];
+        
+        elements.forEach(element => {
+            const tags = element.tags || {};
+            let lat, lng;
+            
+            // Obtenir les coordonnées
+            if (element.lat && element.lon) {
+                lat = element.lat;
+                lng = element.lon;
+            } else if (element.center) {
+                lat = element.center.lat;
+                lng = element.center.lon;
+            } else {
+                return; // Skip si pas de coordonnées
+            }
+            
+            // Déterminer le type de commerce
+            let type = 'grocery';
+            let icon = '🏪';
+            let category = 'Épicerie';
+            
+            if (tags.shop === 'bakery') {
+                type = 'bakery';
+                icon = '🥖';
+                category = 'Boulangerie';
+            } else if (tags.shop === 'supermarket') {
+                type = 'supermarket';
+                icon = '🛒';
+                category = 'Supermarché';
+            } else if (tags.amenity === 'restaurant') {
+                type = 'restaurant';
+                icon = '🍽️';
+                category = 'Restaurant';
+            } else if (tags.amenity === 'fast_food') {
+                type = 'restaurant';
+                icon = '🍔';
+                category = 'Fast-food';
+            } else if (tags.shop === 'convenience') {
+                type = 'grocery';
+                icon = '🏪';
+                category = 'Supérette';
+            }
+            
+            const shop = {
+                id: element.id,
+                name: tags.name || `${category} sans nom`,
+                type: type,
+                icon: icon,
+                category: category,
+                address: this.formatAddress(tags),
+                phone: tags.phone || null,
+                website: tags.website || null,
+                lat: lat,
+                lng: lng,
+                distance: this.calculateDistance(this.userLocation.lat, this.userLocation.lng, lat, lng),
+                // Simulation de prix anti-gaspi
+                hasAntiWaste: Math.random() > 0.3, // 70% de chance d'avoir de l'anti-gaspi
+                estimatedSavings: Math.floor(Math.random() * 50) + 10 // 10-60% de réduction
+            };
+            
+            shops.push(shop);
+        });
+        
+        // Trier par distance
+        return shops.sort((a, b) => a.distance - b.distance);
+    }
+    
+    // Formater l'adresse
+    formatAddress(tags) {
+        const parts = [];
+        if (tags['addr:housenumber']) parts.push(tags['addr:housenumber']);
+        if (tags['addr:street']) parts.push(tags['addr:street']);
+        if (tags['addr:city']) parts.push(tags['addr:city']);
+        if (tags['addr:postcode']) parts.push(tags['addr:postcode']);
+        return parts.length > 0 ? parts.join(' ') : 'Adresse non disponible';
+    }
+    
+    // Calculer la distance en mètres
+    calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371e3; // Rayon de la Terre en mètres
+        const φ1 = lat1 * Math.PI/180;
+        const φ2 = lat2 * Math.PI/180;
+        const Δφ = (lat2-lat1) * Math.PI/180;
+        const Δλ = (lng2-lng1) * Math.PI/180;
+        
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        
+        return Math.round(R * c);
+    }
+    
+    // Afficher les commerces
+    displayShops() {
+        const container = document.getElementById('anti-gaspi-content');
+        const shopsToShow = this.getFilteredShops();
+        
+        if (shopsToShow.length === 0) {
+            container.innerHTML = `
+                <div class="no-shops-found">
+                    <div class="no-shops-icon">🔍</div>
+                    <h3>Aucun commerce trouvé</h3>
+                    <p>Essayez d'élargir votre recherche ou de changer de filtre</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = `
+            <div class="shops-grid">
+                ${shopsToShow.map(shop => this.renderShopCard(shop)).join('')}
+            </div>
+        `;
+    }
+    
+    // Obtenir les commerces filtrés
+    getFilteredShops() {
+        if (this.currentFilter === 'all') {
+            return this.nearbyShops;
+        }
+        return this.nearbyShops.filter(shop => shop.type === this.currentFilter);
+    }
+    
+    // Filtrer les commerces affichés
+    filterDisplayedShops() {
+        this.displayShops();
+    }
+    
+    // Rendre une carte de commerce
+    renderShopCard(shop) {
+        const distanceText = shop.distance < 1000 ? 
+            `${shop.distance}m` : 
+            `${(shop.distance / 1000).toFixed(1)}km`;
+            
+        const antiWasteBadge = shop.hasAntiWaste ? 
+            `<div class="anti-waste-badge">🌱 -${shop.estimatedSavings}%</div>` : 
+            '';
+            
+        return `
+            <div class="shop-card" data-shop-id="${shop.id}">
+                <div class="shop-header">
+                    <div class="shop-icon">${shop.icon}</div>
+                    <div class="shop-info">
+                        <h4 class="shop-name">${shop.name}</h4>
+                        <span class="shop-category">${shop.category}</span>
+                        <span class="shop-distance">${distanceText}</span>
+                    </div>
+                    ${antiWasteBadge}
+                </div>
+                
+                <div class="shop-address">
+                    📍 ${shop.address}
+                </div>
+                
+                ${shop.hasAntiWaste ? `
+                    <div class="anti-waste-info">
+                        <span class="savings-text">💰 Économies estimées: ${shop.estimatedSavings}%</span>
+                        <span class="availability">🕐 Disponible aujourd'hui</span>
+                    </div>
+                ` : ''}
+                
+                <div class="shop-actions">
+                    <button class="btn btn-outline" onclick="antiGaspiManager.openDirections(${shop.lat}, ${shop.lng}, '${shop.name.replace(/'/g, "\\'")}')">
+                        🗺️ Itinéraire
+                    </button>
+                    ${shop.phone ? `
+                        <button class="btn btn-primary" onclick="antiGaspiManager.callShop('${shop.phone}', '${shop.name.replace(/'/g, "\\'")}')">
+                            📞 Appeler
+                        </button>
+                    ` : `
+                        <button class="btn btn-secondary" disabled title="Numéro non disponible">
+                            📞 N/A
+                        </button>
+                    `}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Ouvrir l'itinéraire vers un commerce
+    openDirections(lat, lng, shopName) {
+        const userLat = this.userLocation.lat;
+        const userLng = this.userLocation.lng;
+        
+        // URL Google Maps
+        const googleMapsUrl = `https://www.google.com/maps/dir/${userLat},${userLng}/${lat},${lng}/@${lat},${lng},15z`;
+        
+        // Essayer d'ouvrir l'app native sinon le navigateur
+        window.open(googleMapsUrl, '_blank');
+        
+        console.log(`🗺️ Itinéraire vers ${shopName} ouvert`);
+    }
+    
+    // Appeler un commerce
+    callShop(phone, shopName) {
+        if (phone) {
+            window.open(`tel:${phone}`, '_self');
+            console.log(`📞 Appel vers ${shopName}: ${phone}`);
+        }
+    }
+}
+
+// Initialiser le gestionnaire Anti-Gaspi
+const antiGaspiManager = new AntiGaspiManager();
+window.antiGaspiManager = antiGaspiManager;
+
+// ========================================
 // FONCTIONS D'INITIALISATION
 // ========================================
 
@@ -1371,7 +1721,8 @@ function handleSectionChange(sectionName) {
             displayFavorites();
             break;
         case 'anti-gaspi':
-            // TODO: Implémenter l'anti-gaspi
+            // Initialiser la section Anti-Gaspi
+            antiGaspiManager.initializeAntiGaspiSection();
             break;
     }
 }

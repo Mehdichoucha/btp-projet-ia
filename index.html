@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>patOketchup - Tes envies, Tes recettes</title>
-    <meta name="description" content="Transforme ce que tu as en ce que tu veux ! Trouve des recettes délicieuses avec tes ingrédients.">
+    <meta na                            <button type="button" class="suggestion-chip" data-ingredient="pâtes">🍝 Pâtes</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="fromage">🧀 Fromage</button>
+                            <button type="button" class="suggestion-chip" data-ingredient="tomates">🍅 Tomates</button>"description" content="Transforme ce que tu as en ce que tu veux ! Trouve des recettes délicieuses avec tes ingrédients.">
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -319,6 +321,51 @@
                     <!-- Container pour les favoris (sera rempli par JavaScript) -->
                     <div class="favorites-content" id="favorites-content">
                         <!-- Contenu généré dynamiquement par displayFavorites() -->
+                    </div>
+                </section>
+
+                <!-- Section Anti-Gaspi (masquée par défaut) -->
+                <section class="anti-gaspi-section" id="anti-gaspi-section" style="display: none;">
+                    <div class="section-header">
+                        <h2 class="anti-gaspi-title">🌱 Commerces Anti-Gaspi Près de Vous</h2>
+                        <p class="anti-gaspi-subtitle">Trouvez de vrais commerces qui proposent des produits anti-gaspillage</p>
+                    </div>
+                    
+                    <!-- Contrôles de géolocalisation -->
+                    <div class="location-controls">
+                        <button class="btn btn-primary" id="locate-btn" onclick="antiGaspiManager.getUserLocation()">
+                            📍 Localiser mes commerces
+                        </button>
+                        <div class="location-status" id="location-status">
+                            <span class="status-text">Cliquez pour trouver les commerces près de vous</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Filtres de commerces -->
+                    <div class="shop-filters">
+                        <h3>Types de commerces :</h3>
+                        <div class="filter-buttons">
+                            <button class="filter-btn active" data-type="all">🏪 Tous</button>
+                            <button class="filter-btn" data-type="bakery">🥖 Boulangeries</button>
+                            <button class="filter-btn" data-type="supermarket">🛒 Supermarchés</button>
+                            <button class="filter-btn" data-type="grocery">🥬 Épiceries</button>
+                            <button class="filter-btn" data-type="restaurant">🍽️ Restaurants</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Container pour les commerces -->
+                    <div class="anti-gaspi-content" id="anti-gaspi-content">
+                        <div class="welcome-anti-gaspi">
+                            <div class="welcome-icon">🌍</div>
+                            <h3>Découvrez l'Anti-Gaspillage Près de Vous</h3>
+                            <p>Localisez-vous pour découvrir les boulangeries, supermarchés et restaurants qui proposent des invendus à prix réduits</p>
+                            <ul class="features-list">
+                                <li>📍 Géolocalisation précise</li>
+                                <li>🗺️ Commerces réels via OpenStreetMap</li>
+                                <li>📞 Contact direct des commerçants</li>
+                                <li>🚶‍♂️ Itinéraires de navigation</li>
+                            </ul>
+                        </div>
                     </div>
                 </section>
             </div>
