@@ -4255,9 +4255,9 @@ class FrigoManager {
             actionsContainer.style.display = 'none';
         } else {
             container.innerHTML = this.ingredients.map(ingredient => `
-                <div class="ingredient-tag">
+                <div class="ingredient-item">
                     <span class="ingredient-name">${ingredient}</span>
-                    <button class="remove-ingredient" onclick="frigoManager.removeIngredient('${ingredient}')">❌</button>
+                    <button class="ingredient-remove" onclick="frigoManager.removeIngredient('${ingredient}')">✕</button>
                 </div>
             `).join('');
             actionsContainer.style.display = 'flex';
