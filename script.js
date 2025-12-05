@@ -3589,7 +3589,7 @@ function renderRecipeCardStandard(recipe) {
     const isFavorite = isRecipeInFavorites(recipe.id);
     
     return `
-        <article class="recipe-card" data-recipe-id="${recipe.id}">
+        <article class="recipe-card" data-recipe-id="${recipe.id}" onclick="openRecipeModal('${recipe.id}')" style="cursor: pointer;">
             <div class="recipe-image">
                 <img src="${recipe.image}" alt="${recipe.name}" loading="lazy" 
                      onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop&auto=format'; console.log('Image failed to load:', '${recipe.image}');">
@@ -3600,7 +3600,7 @@ function renderRecipeCardStandard(recipe) {
                     ${isFavorite ? '❤️' : '🤍'}
                 </button>
             </div>
-            <div class="recipe-content" onclick="openRecipeModal('${recipe.id}')">
+            <div class="recipe-content">
                 <h3 class="recipe-title">
                     ${recipe.name}
                     ${recipe.isTranslated ? `<span class="translation-badge" title="Traduit automatiquement vers ${recipe.translatedTo || (window.translationAI?.currentLanguage || 'français')}${recipe.originalName ? ' depuis: ' + recipe.originalName : ''}">🌍 ${getLanguageFlag(recipe.translatedTo || (window.translationAI?.currentLanguage || 'français'))}</span>` : ''}
@@ -3824,10 +3824,18 @@ function getCategoryLabel(category) {
 
 // Ouvrir le modal avec les détails de la recette depuis l'API + Traduction à la demande
 async function openRecipeModal(recipeId) {
-    console.log('🔍 Tentative d\'ouverture recette avec ID:', recipeId, 'Type:', typeof recipeId);
+    console.log('🔍 DEBUT openRecipeModal - Tentative d\'ouverture recette avec ID:', recipeId, 'Type:', typeof recipeId);
+    
+    // Empêcher les doubles clics rapides
+    if (window.isRecipeModalOpening) {
+        console.log('⚠️ Modal déjà en cours d\'ouverture, ignore le clic');
+        return;
+    }
+    window.isRecipeModalOpening = true;
     
     try {
         // Afficher un loading dans le modal
+        console.log('🔄 Affichage du loading...');
         showModalLoading();
         
         // Récupérer les détails depuis l'API ou fallback
@@ -3995,10 +4003,15 @@ async function openRecipeModal(recipeId) {
         // Empêcher le scroll du body
         document.body.style.overflow = 'hidden';
         
+        console.log('✅ Modal recette ouverte avec succès');
+        
     } catch (error) {
         console.error('❌ Erreur ouverture modal:', error);
         showNotification('Erreur lors de l\'ouverture de la recette', 'error');
         closeRecipeModal();
+    } finally {
+        // Réinitialiser le flag
+        window.isRecipeModalOpening = false;
     }
 }
 
@@ -4109,14 +4122,22 @@ function showModalLoading() {
 
 // Fermer le modal
 function closeRecipeModal() {
+    console.log('🚪 Fermeture du modal recette');
+    
     const modal = document.getElementById('recipeModal');
     
     if (modal) {
         modal.classList.remove('active');
         
         setTimeout(() => {
+            modal.remove();
+            // Rétablir le scroll du body
+            document.body.style.overflow = '';
         }, 300);
     }
+    
+    // Réinitialiser le flag au cas où
+    window.isRecipeModalOpening = false;
 }
 
 // Fermer le modal avec la touche Échap
